@@ -41,9 +41,9 @@ from .util import Solver, _copydoc, uniform_in_bounds
 from . import util
 from .Sobol import Sobol
 
-@register_solver('particle swarm',
-                 'particle swarm optimization',
-                 ['Maximizes the function using particle swarm optimization.',
+@register_solver('particle swarm',                                                      # name to register solver with
+                 'particle swarm optimization',                                         # one-line description of solver
+                 ['Maximizes the function using particle swarm optimization.',          # extensive description and manual of solver
                   ' ',
                   'This is a two-phase approach:',
                   '1. Initialization: randomly initializes num_particles particles.',
@@ -123,13 +123,17 @@ class ParticleSwarm(Solver):
 
         """
 
-        assert all([len(v) == 2 and v[0] <= v[1]
+        assert all([len(v) == 2 and v[0] <= v[1]        # Check format of bounds given for each hyperparameter.
                     for v in kwargs.values()]), 'kwargs.values() are not [lb, ub] pairs'
-        self._bounds = kwargs
+        self._bounds = kwargs                           # len(self.bounds) gives number of hyperparameters considered.
         self._num_particles = num_particles
         self._num_generations = num_generations
 
         self._sobolseed = random.randint(100,2000)
+
+        # Sobol sequences are an example of quasi-random low-discrepancy sequences. Roughly speaking, the discrepancy
+        # of a sequence is low if the proportion of points in the sequence falling into an arbitrary set B is close
+        # to proportional to the measure of B, as would happen on average in the case of an equidistributed sequence.
 
         if max_speed is None:
             max_speed = 0.7 / num_generations
@@ -247,36 +251,50 @@ class ParticleSwarm(Solver):
                 part.speed[i] = self.smax[i]
         part.position[:] = array.array('d', map(op.add, part.position, part.speed))
 
-    def particle2dict(self, particle):
-        return dict([(k, v) for k, v in zip(self.bounds.keys(),
+    def particle2dict(self, particle):                          # Convert particle to dict format {"hyperparameter": particle_position}.
+        return dict([(k, v) for k, v in zip(self.bounds.keys(), # self.bound.keys() returns hyperparameter names.
                                             particle.position)])
 
     @_copydoc(Solver.optimize)
-    def optimize(self, f, maximize=True, pmap=map):
+    def optimize(self, f, maximize=True, pmap=map):             # f is objective function to be optimized.
+        
+        # map(function,iterable,...): Return an iterator that applies function to every item
+        # of iterable, yielding the results. If additional iterable arguments are passed,
+        # function must take that many arguments and is applied to the items from all iterables
+        # in parallel. With multiple iterables, the interator stops when the shortest iterable
+        # is exhausted.
 
-        @functools.wraps(f)
+        @functools.wraps(f)                                     # wrapper function evaluating f
         def evaluate(d):
             return f(**d)
+
+        # Determine whether optimization problem is maximization or minimization problem.
+        # The 'optimize' function is a maximizer, so if we want to minimze, we basically
+        # maximize -f.
 
         if maximize:
             fit = 1.0
         else:
             fit = -1.0
 
-        pop = [self.generate() for _ in range(self.num_particles)]
-        best = None
+        pop = [self.generate() for _ in range(self.num_particles)]          # Randomly generate list of num_particle new particles. 
+        # "_" is common usage in python, meaning that the iterator is not needed. Like, running a list of int,
+        # using range, what matters is the times the range shows not its value. It is just another variable,
+        # but conventionally used to show that one does not care about its value.
 
-        for g in range(self.num_generations):
-            fitnesses = pmap(evaluate, list(map(self.particle2dict, pop)))
-            for part, fitness in zip(pop, fitnesses):
-                part.fitness = fit * util.score(fitness)
-                if not part.best or part.best_fitness < part.fitness:
+        best = None                                                         # Initialize particle storing global best.
+
+        for g in range(self.num_generations):                               # Loop over generations.
+            fitnesses = pmap(evaluate, list(map(self.particle2dict, pop)))  # Evaluate fitnesses for all particles in current generation.
+            for part, fitness in zip(pop, fitnesses):                       # Loop over pairs of particles and individual fitnesses.
+                part.fitness = fit * util.score(fitness)                    # util.score: wrapper around objective function evaluations to get score.
+                if not part.best or part.best_fitness < part.fitness:       # Update personal best if required.
                     part.best = part.position
                     part.best_fitness = part.fitness
-                if not best or best.fitness < part.fitness:
+                if not best or best.fitness < part.fitness:                 # Update global best if required.
                     best = part.clone()
-            for part in pop:
+            for part in pop:                                                # Update particle for next generation loop.
                 self.updateParticle(part, best, self.phi1, self.phi2)
 
-        return dict([(k, v)
+        return dict([(k, v)                                                 # Return best position for each hyperparameter.
                         for k, v in zip(self.bounds.keys(), best.position)]), None
