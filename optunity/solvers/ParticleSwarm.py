@@ -129,7 +129,7 @@ class ParticleSwarm(Solver):
         self._num_particles = num_particles
         self._num_generations = num_generations
 
-        self._sobolseed = random.randint(100,2000)
+        self._sobolseed = random.randint(100,2000)      # random.randint(a,b) returns random integer N such that a <= N <= b.
 
         # Sobol sequences are an example of quasi-random low-discrepancy sequences. Roughly speaking, the discrepancy
         # of a sequence is low if the proportion of points in the sequence falling into an arbitrary set B is close
@@ -140,8 +140,9 @@ class ParticleSwarm(Solver):
 #            max_speed = 0.2 / math.sqrt(num_generations)
         self._max_speed = max_speed
         self._smax = [self.max_speed * (b[1] - b[0])
-                        for _, b in self.bounds.items()]
-        self._smin = list(map(op.neg, self.smax))
+                        for _, b in self.bounds.items()]# dictionary.items() returns view object displaying (key,value) tuple pair list.
+        
+        self._smin = list(map(op.neg, self.smax))       # operator.neg(obj) returns obj negated (-obj).
 
         self._phi1 = phi1
         self._phi2 = phi2
