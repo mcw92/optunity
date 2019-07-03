@@ -31,6 +31,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import math
+import numpy as np
 import operator as op
 import random
 import array
@@ -40,15 +41,19 @@ from .solver_registry import register_solver
 from .util import Solver, _copydoc, uniform_in_bounds
 from . import util
 from .Sobol import Sobol
+from . import ParticleSwarm                                                             # import normal PSO from optunity
+# Classes required for dynamic PSO can then inherit from base classes implemented in normal PSO.
 
-@register_solver('particle swarm',                                                      # name to register solver with
-                 'particle swarm optimization',                                         # one-line description of solver
-                 ['Maximizes the function using particle swarm optimization.',          # extensive description and manual of solver
+@register_solver('dynamic particle swarm',                                                          # name to register solver with
+                 'dynamic particle swarm optimization',                                             # one-line description of solver
+                 ['Optimizes the function using a dynamic variant of particle swarm optimization.', # extensive description and manual of solver
+                  'Parameters of the objective function are adapted after each iteration',
+                  'according to the current state of knowledge.',
                   ' ',
                   'This is a two-phase approach:',
-                  '1. Initialization: randomly initializes num_particles particles.',
+                  '1. Initialization: Randomly initialize num_particles particles.',
                   '   Particles are randomized uniformly within the box constraints.',
-                  '2. Iteration: particles move during num_generations iterations.',
+                  '2. Iteration: Particles move during num_generations iterations.',
                   '   Movement is based on their velocities and mutual attractions.',
                   ' ',
                   'This function requires the following arguments:',
@@ -58,169 +63,36 @@ from .Sobol import Sobol
                   '- box constraints via key words: constraints are lists [lb, ub]', ' ',
                   'This solver performs num_particles*num_generations function evaluations.'
                   ])
-class ParticleSwarm(Solver):
+
+class DynamicPSO(ParticleSwarm)
     """
-    .. include:: /global.rst
-
-    Please refer to |pso| for details on this algorithm.
+    Dynamic particle swarm optimization solver class.
     """
 
-    class Particle:
-        def __init__(self, position, speed, best, fitness, best_fitness):
-            """Constructs a Particle."""
-            self.position = position
-            self.speed = speed
-            self.best = best
-            self.fitness = fitness
-            self.best_fitness = best_fitness
-
+    class DynamicParticle(ParticleSwarm.Particle):
+        def __init__(self, position, speed, best, fitness, best_fitness, fargs, fparams):
+            """Construct a dynamic particle"""
+            super().__init__(position, speed, best, fitness, best_fitness)
+            """
+            fargs is a vector containing different unweighted terms of objective function.
+            fparams is a vector containing different parameters of objective function.
+            """
+            self.fargs = fargs
+            self.fparams = fparams
+        
         def clone(self):
-            """Clones this Particle."""
-            return ParticleSwarm.Particle(position=self.position[:], speed=self.speed[:],
-                                          best=self.best[:], fitness=self.fitness,
-                                          best_fitness=self.best_fitness)
-
-        def __str__(self):
-            string = 'Particle{position=' + str(self.position)
-            string += ', speed=' + str(self.speed)
-            string += ', best=' + str(self.best)
-            string += ', fitness=' + str(self.fitness)
-            string += ', best_fitness=' + str(self.best_fitness)
-            string += '}'
-            return string
-
+        """Clone this dynamic particle."""
+            return DynamicPSO.DynamicParticle(position=self.position[:], speed=self.speed[:],
+                                              best=self.best[:], fitness=self.fitness,
+                                              best_fitness=self.best_fitness,fargs=self.fargs[:],
+                                              self.fparams[:])
+    """    
+    The DynamicPSO class definition does not have an .__init__() because it inherits from ParticleSwarm and
+    .__init__() does not really do anything differently for DynamicPSO than it already does for ParticleSwarm.
+    This is why one can skip defining it and the .__init() of the superclass will be called automatically.
     def __init__(self, num_particles, num_generations, max_speed=None, phi1=1.5, phi2=2.0, **kwargs):
-        """
-        Initializes a PSO solver.
-
-        :param num_particles: number of particles to use
-        :type num_particles: int
-        :param num_generations: number of generations to use
-        :type num_generations: int
-        :param max_speed: maximum velocity of each particle
-        :type max_speed: float or None
-        :param phi1: parameter used in updating position based on local best
-        :type phi1: float
-        :param phi2: parameter used in updating position based on global best
-        :type phi2: float
-        :param kwargs: box constraints for each hyperparameter
-        :type kwargs: {'name': [lb, ub], ...}
-
-        The number of function evaluations it will perform is `num_particles`*`num_generations`.
-        The search space is rescaled to the unit hypercube before the solving process begins.
-
-        >>> solver = ParticleSwarm(num_particles=10, num_generations=5, x=[-1, 1], y=[0, 2])
-        >>> solver.bounds['x']
-        [-1, 1]
-        >>> solver.bounds['y']
-        [0, 2]
-        >>> solver.num_particles
-        10
-        >>> solver.num_generations
-        5
-
-        .. warning:: |warning-unconstrained|
-
-        """
-
-        assert all([len(v) == 2 and v[0] <= v[1]        # Check format of bounds given for each hyperparameter.
-                    for v in kwargs.values()]), 'kwargs.values() are not [lb, ub] pairs'
-        self._bounds = kwargs                           # len(self.bounds) gives number of hyperparameters considered.
-        self._num_particles = num_particles
-        self._num_generations = num_generations
-
-        self._sobolseed = random.randint(100,2000)
-
-        # Sobol sequences are an example of quasi-random low-discrepancy sequences. Roughly speaking, the discrepancy
-        # of a sequence is low if the proportion of points in the sequence falling into an arbitrary set B is close
-        # to proportional to the measure of B, as would happen on average in the case of an equidistributed sequence.
-
-        if max_speed is None:
-            max_speed = 0.7 / num_generations
-#            max_speed = 0.2 / math.sqrt(num_generations)
-        self._max_speed = max_speed
-        self._smax = [self.max_speed * (b[1] - b[0])
-                        for _, b in self.bounds.items()]
-        self._smin = list(map(op.neg, self.smax))
-
-        self._phi1 = phi1
-        self._phi2 = phi2
-
-    @property
-    def phi1(self):
-        return self._phi1
-
-    @property
-    def phi2(self):
-        return self._phi2
-
-    @property
-    def sobolseed(self): return self._sobolseed
-
-    @sobolseed.setter
-    def sobolseed(self, value): self._sobolseed = value
-
-    @staticmethod
-    def suggest_from_box(num_evals, **kwargs):
-        """Create a configuration for a ParticleSwarm solver.
-
-        :param num_evals: number of permitted function evaluations
-        :type num_evals: int
-        :param kwargs: box constraints
-        :type kwargs: {'param': [lb, ub], ...}
-
-        >>> config = ParticleSwarm.suggest_from_box(200, x=[-1, 1], y=[0, 1])
-        >>> config['x']
-        [-1, 1]
-        >>> config['y']
-        [0, 1]
-        >>> config['num_particles'] > 0
-        True
-        >>> config['num_generations'] > 0
-        True
-        >>> solver = ParticleSwarm(**config)
-        >>> solver.bounds['x']
-        [-1, 1]
-        >>> solver.bounds['y']
-        [0, 1]
-
-        """
-        d = dict(kwargs)
-        if num_evals > 1000:
-            d['num_particles'] = 100
-        elif num_evals >= 200:
-            d['num_particles'] = 20
-        elif num_evals >= 10:
-            d['num_particles'] = 10
-        else:
-            d['num_particles'] = num_evals
-        d['num_generations'] = int(math.ceil(float(num_evals) / d['num_particles']))
-        return d
-
-    @property
-    def num_particles(self):
-        return self._num_particles
-
-    @property
-    def num_generations(self):
-        return self._num_generations
-
-    @property
-    def max_speed(self):
-        return self._max_speed
-
-    @property
-    def smax(self):
-        return self._smax
-
-    @property
-    def smin(self):
-        return self._smin
-
-    @property
-    def bounds(self):
-        return self._bounds
-
+        super().__init__(self, num_particles, num_generations, max_speed=None, phi1=1.5, phi2=2.0, **kwargs)
+    """
     def generate(self):
         """Generate a new Particle."""
         if len(self.bounds) < Sobol.maxdim():
@@ -281,9 +153,17 @@ class ParticleSwarm(Solver):
         # "_" is common usage in python, meaning that the iterator is not needed. Like, running a list of int,
         # using range, what matters is the times the range shows not its value. It is just another variable,
         # but conventionally used to show that one does not care about its value.
-
+        
+        # ? HOW TO GET IN NUM_ARGS = number of numerical inputs of objective function and NUM_PARAMS = number of parameters (= weights) in objective function?
+        # Initialize PSO history as numpy array. 
+        # Particle history: Each line gives data from one iteration and corresponds to a particular particle in a
+        # particular generation, i.e. a specific combination of hyperparameters tested.
+        # generation index | particle index | parameters tested | numerical inputs of objective function    <= These quantities are determined once for each iteration.
+        # current score | current personal best | current global best                        <= These quantities have to be updated after each iteration.
+        particle_history = np.empty(self.num_generations*self.num_particles,len(self.bounds+NUM_ARGS+NUM_PARAMS+3))
+        weights_history = np.empty(self.num_generations*self.num_particles, NUM_PARAMS)
         best = None                                                         # Initialize particle storing global best.
-
+        
         for g in range(self.num_generations):                               # Loop over generations.
             fitnesses = pmap(evaluate, list(map(self.particle2dict, pop)))  # Evaluate fitnesses for all particles in current generation.
             for part, fitness in zip(pop, fitnesses):                       # Loop over pairs of particles and individual fitnesses.
