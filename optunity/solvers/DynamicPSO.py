@@ -44,6 +44,27 @@ from .Sobol import Sobol
 from . import ParticleSwarm                                                             # import normal PSO from optunity
 # Classes required for dynamic PSO can then inherit from base classes implemented in normal PSO.
 
+def adapt_weights(func=None, terms_min=None, terms_max=None):
+    """
+    Update weights according to function func specified by user. If no function is specified, nothing will happen.
+    """
+    if func==None: pass                             # If no function to adapt weights is specified by the user, do nothing.
+    else:                                           # Otherwise, adapt/update weights according to specified function func
+        updated_weights = func(terms_min, terms_max)
+        return updated_weights
+
+def reval_score(part, func, curr_weights):
+    """
+    Re-evaluate fitness for all particles in history using most recent weights according to current state of knowledge.
+    :param part: particle whose score is to be updated
+    :param func: function specifying mathematical form of objective function, i.e. how terms and weights are to becombined to yield score
+    :param curr_weights: current set of weights to be used in evaluation
+    """
+    part.fitness = func(part.fargs, curr_weights)
+    if part.fitness < part.best_fitness: part.best_fitness = part.fitness # Update personal best if required.
+    '''I have to compare each historical particle's best fitness with the particle's personal best fitness from the current generation.'''
+    pass
+
 @register_solver('dynamic particle swarm',                                                          # name to register solver with
                  'dynamic particle swarm optimization',                                             # one-line description of solver
                  ['Optimizes the function using a dynamic variant of particle swarm optimization.', # extensive description and manual of solver
@@ -74,8 +95,13 @@ class DynamicPSO(ParticleSwarm)
             """Construct a dynamic particle"""
             super().__init__(position, speed, best, fitness, best_fitness)
             """
-            fargs is a vector containing different unweighted terms of objective function.
-            fparams is a vector containing different parameters of objective function.
+            :param position: current particle position corresponding to hyperparameter combination to be tested
+            :param speed:
+            :param best: best position of this particle so far
+            :param fitness:
+            :param best_fitness:
+            :param fargs: vector containing different unweighted terms of objective function
+            :param fparams: vector containing different parameters of objective function
             """
             self.fargs = fargs
             self.fparams = fparams
@@ -99,19 +125,24 @@ class DynamicPSO(ParticleSwarm)
             sobol_vector, self.sobolseed = Sobol.i4_sobol(len(self.bounds), self.sobolseed)
             vector = util.scale_unit_to_bounds(sobol_vector, self.bounds.values())
         else: vector = uniform_in_bounds(self.bounds)
-
-        part = ParticleSwarm.Particle(position=array.array('d', vector),
+        
+        """
+        array.array(typecode[,initializer]) creates a new array whose items are restricted by typecode and
+        initialized from optional initializer value. 'd' means C doubles, i.e. Python floats.
+        """
+        part = DynamicPSO.DynamicParticle(position=array.array('d', vector),
                                       speed=array.array('d', map(random.uniform,
                                                                  self.smin, self.smax)),
-                                      best=None, fitness=None, best_fitness=None)
+                                      best=None, fitness=None, best_fitness=None,
+                                      fargs=None, fparams=None)
         return part
 
     def updateParticle(self, part, best, phi1, phi2):
         """Update the particle."""
         u1 = (random.uniform(0, phi1) for _ in range(len(part.position)))
         u2 = (random.uniform(0, phi2) for _ in range(len(part.position)))
-        v_u1 = map(op.mul, u1,
-                    map(op.sub, part.best, part.position))
+        v_u1 = map(op.mul, u1,                                              # operator.mul(a,b) returns a*b for numbers a and b.
+                    map(op.sub, part.best, part.position))                  # operator.sub(a,b) returns a-b.
         v_u2 = map(op.mul, u2,
                     map(op.sub, best.position, part.position))
         part.speed = array.array('d', map(op.add, part.speed,
@@ -123,9 +154,13 @@ class DynamicPSO(ParticleSwarm)
                 part.speed[i] = self.smax[i]
         part.position[:] = array.array('d', map(op.add, part.position, part.speed))
 
-    def particle2dict(self, particle):                          # Convert particle to dict format {"hyperparameter": particle_position}.
-        return dict([(k, v) for k, v in zip(self.bounds.keys(), # self.bound.keys() returns hyperparameter names.
-                                            particle.position)])
+    """
+    particle2dict is inherited from ParticleSwarm parent class without changes.
+    Convert particle to dict format {"hyperparameter": particle position}
+    """
+    
+    #def updateScore(self, part, func):
+    #    """Update personal and global best using objective function with most recent weights."""
 
     @_copydoc(Solver.optimize)
     def optimize(self, f, maximize=True, pmap=map):             # f is objective function to be optimized.
@@ -150,22 +185,25 @@ class DynamicPSO(ParticleSwarm)
             fit = -1.0
 
         pop = [self.generate() for _ in range(self.num_particles)]          # Randomly generate list of num_particle new particles. 
-        # "_" is common usage in python, meaning that the iterator is not needed. Like, running a list of int,
-        # using range, what matters is the times the range shows not its value. It is just another variable,
-        # but conventionally used to show that one does not care about its value.
-        
-        # ? HOW TO GET IN NUM_ARGS = number of numerical inputs of objective function and NUM_PARAMS = number of parameters (= weights) in objective function?
-        # Initialize PSO history as numpy array. 
-        # Particle history: Each line gives data from one iteration and corresponds to a particular particle in a
-        # particular generation, i.e. a specific combination of hyperparameters tested.
-        # generation index | particle index | parameters tested | numerical inputs of objective function    <= These quantities are determined once for each iteration.
-        # current score | current personal best | current global best                        <= These quantities have to be updated after each iteration.
-        particle_history = np.empty(self.num_generations*self.num_particles,len(self.bounds+NUM_ARGS+NUM_PARAMS+3))
-        weights_history = np.empty(self.num_generations*self.num_particles, NUM_PARAMS)
+        pop_history = [pop]                                                 # Initialize particle history as list.
+        term_min = []                                                       # Initialize array storing minimum values for (unweighted) objective function terms.
+        term_max = []                                                       # Initialize array storing maximum values for (unweighted) objective function terms.
+        """
+        "_" is common usage in python, meaning that the iterator is not needed. Like, running a list of int, using range, 
+        what matters is the times the range shows not its value. It is just another variable, but conventionally used 
+        to show that one does not care about its value.
+        """
         best = None                                                         # Initialize particle storing global best.
-        
+        """
+        Note that with this PSO loop structure, weights can only be updated once for each generation and not after each particle iteration.
+        """
         for g in range(self.num_generations):                               # Loop over generations.
             fitnesses = pmap(evaluate, list(map(self.particle2dict, pop)))  # Evaluate fitnesses for all particles in current generation.
+            """
+            evaluate is a wrapper function evaluating objective function f. 
+            It gets a list of dicts {"hyperparameter": particle position} for each particle in pop as inputs
+            and evaluates the objective function for each particle based on its position.
+            """
             for part, fitness in zip(pop, fitnesses):                       # Loop over pairs of particles and individual fitnesses.
                 part.fitness = fit * util.score(fitness)                    # util.score: wrapper around objective function evaluations to get score.
                 if not part.best or part.best_fitness < part.fitness:       # Update personal best if required.
@@ -175,6 +213,6 @@ class DynamicPSO(ParticleSwarm)
                     best = part.clone()
             for part in pop:                                                # Update particle for next generation loop.
                 self.updateParticle(part, best, self.phi1, self.phi2)
-
+            pop_history.append(pop)                                         # Append particle list of current generation to particle history.
         return dict([(k, v)                                                 # Return best position for each hyperparameter.
                         for k, v in zip(self.bounds.keys(), best.position)]), None
