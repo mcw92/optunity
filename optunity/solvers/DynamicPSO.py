@@ -44,14 +44,14 @@ from .Sobol import Sobol
 from . import ParticleSwarm                                                             # import normal PSO from optunity
 # Classes required for dynamic PSO can then inherit from base classes implemented in normal PSO.
 
-def adapt_weights(func=None, terms_min=None, terms_max=None):
+def adapt_weights(func=None, *args, **kwargs):
     """
     Update weights according to function func specified by user. If no function is specified, nothing will happen.
     """
     if func==None: pass                             # If no function to adapt weights is specified by the user, do nothing.
     else:                                           # Otherwise, adapt/update weights according to specified function func
-        updated_weights = func(terms_min, terms_max)
-        return updated_weights
+        adapted_weights = func(*args, **kwargs)
+        return adapted_weights
 
 def reval_score(part, func, curr_weights):
     """
@@ -96,12 +96,12 @@ class DynamicPSO(ParticleSwarm)
             super().__init__(position, speed, best, fitness, best_fitness)
             """
             :param position: current particle position corresponding to hyperparameter combination to be tested
-            :param speed:
-            :param best: best position of this particle so far
-            :param fitness:
-            :param best_fitness:
-            :param fargs: vector containing different unweighted terms of objective function
-            :param fparams: vector containing different parameters of objective function
+            :param speed: current particle speed giving its direction of movement in hyperparameter space
+            :param best: best position of this particle so far (i.e. considering current and all previous generations)
+            :param fitness: current particle fitness (i.e. in generation considered)
+            :param best_fitness: best fitness of this particle so far (i.e. considering current and all previous generations)
+            :param fargs: vector containing different unweighted terms of objective function for this particle
+            :param fparams: vector containing different parameters of objective function for this particle
             """
             self.fargs = fargs
             self.fparams = fparams
@@ -138,7 +138,7 @@ class DynamicPSO(ParticleSwarm)
         return part
 
     def updateParticle(self, part, best, phi1, phi2):
-        """Update the particle."""
+        """Update the particle, i.e. update its speed and position according to current personal and global best."""
         u1 = (random.uniform(0, phi1) for _ in range(len(part.position)))
         u2 = (random.uniform(0, phi2) for _ in range(len(part.position)))
         v_u1 = map(op.mul, u1,                                              # operator.mul(a,b) returns a*b for numbers a and b.
@@ -195,7 +195,8 @@ class DynamicPSO(ParticleSwarm)
         """
         best = None                                                         # Initialize particle storing global best.
         """
-        Note that with this PSO loop structure, weights can only be updated once for each generation and not after each particle iteration.
+        !!! Note that with this PSO loop structure, weights can only be updated once for each generation and not after each particle iteration.
+        This is okay because otherwise objective function evaluations (simulations) could not be run in parallel for particles from one generation.
         """
         for g in range(self.num_generations):                               # Loop over generations.
             fitnesses = pmap(evaluate, list(map(self.particle2dict, pop)))  # Evaluate fitnesses for all particles in current generation.
@@ -213,6 +214,6 @@ class DynamicPSO(ParticleSwarm)
                     best = part.clone()
             for part in pop:                                                # Update particle for next generation loop.
                 self.updateParticle(part, best, self.phi1, self.phi2)
-            pop_history.append(pop)                                         # Append particle list of current generation to particle history.
+            #pop_history.append(pop)                                         # Append particle list of current generation to particle history.
         return dict([(k, v)                                                 # Return best position for each hyperparameter.
                         for k, v in zip(self.bounds.keys(), best.position)]), None
