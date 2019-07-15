@@ -44,7 +44,7 @@ from .Sobol import Sobol
 from . import ParticleSwarm                                                             # import normal PSO from optunity
 # Classes required for dynamic PSO can then inherit from base classes implemented in normal PSO.
 
-def adapt_weights(func=None, *args, **kwargs):
+def determine_params(func=None, *args, **kwargs):
     """
     Update weights according to function func specified by user. If no function is specified, nothing will happen.
     """
@@ -53,11 +53,11 @@ def adapt_weights(func=None, *args, **kwargs):
         adapted_weights = func(*args, **kwargs)
         return adapted_weights
 
-def reval_score(part, func, curr_weights):
+def combine_obj(part, func, curr_weights):
     """
     Re-evaluate fitness for all particles in history using most recent weights according to current state of knowledge.
     :param part: particle whose score is to be updated
-    :param func: function specifying mathematical form of objective function, i.e. how terms and weights are to becombined to yield score
+    :param func: function specifying mathematical form of objective function, i.e. how terms and weights are to be combined to yield score
     :param curr_weights: current set of weights to be used in evaluation
     """
     part.fitness = func(part.fargs, curr_weights)
@@ -104,7 +104,7 @@ class DynamicPSO(ParticleSwarm)
             :param fparams: vector containing different parameters of objective function for this particle
             """
             self.fargs = fargs
-            self.fparams = fparams
+            #self.fparams = fparams
         
         def clone(self):
         """Clone this dynamic particle."""
@@ -138,7 +138,7 @@ class DynamicPSO(ParticleSwarm)
         return part
 
     def updateParticle(self, part, best, phi1, phi2):
-        """Update the particle, i.e. update its speed and position according to current personal and global best."""
+        """Propagate the particle, i.e. update its speed and position according to current personal and global best."""
         u1 = (random.uniform(0, phi1) for _ in range(len(part.position)))
         u2 = (random.uniform(0, phi2) for _ in range(len(part.position)))
         v_u1 = map(op.mul, u1,                                              # operator.mul(a,b) returns a*b for numbers a and b.
@@ -159,9 +159,6 @@ class DynamicPSO(ParticleSwarm)
     Convert particle to dict format {"hyperparameter": particle position}
     """
     
-    #def updateScore(self, part, func):
-    #    """Update personal and global best using objective function with most recent weights."""
-
     @_copydoc(Solver.optimize)
     def optimize(self, f, maximize=True, pmap=map):             # f is objective function to be optimized.
         
@@ -173,47 +170,57 @@ class DynamicPSO(ParticleSwarm)
 
         @functools.wraps(f)                                     # wrapper function evaluating f
         def evaluate(d):
+        """
+        wrapper function evaluating objective function f accepting a dict {"hyperparameter": particle position}
+        """
             return f(**d)
-
-        # Determine whether optimization problem is maximization or minimization problem.
-        # The 'optimize' function is a maximizer, so if we want to minimze, we basically
-        # maximize -f.
-
+        """
+        Determine whether optimization problem is maximization or minimization problem.
+        The 'optimize' function is a maximizer, i.e. to minimze, basically maximize -f.
+        """
         if maximize:
             fit = 1.0
         else:
             fit = -1.0
 
         pop = [self.generate() for _ in range(self.num_particles)]          # Randomly generate list of num_particle new particles. 
-        pop_history = [pop]                                                 # Initialize particle history as list.
-        term_min = []                                                       # Initialize array storing minimum values for (unweighted) objective function terms.
-        term_max = []                                                       # Initialize array storing maximum values for (unweighted) objective function terms.
+        pop_history = []                                                    # Initialize particle history as list.
+        fparams_history = []                                                # Initialize obj. func. param. history as list.
         """
-        "_" is common usage in python, meaning that the iterator is not needed. Like, running a list of int, using range, 
-        what matters is the times the range shows not its value. It is just another variable, but conventionally used 
-        to show that one does not care about its value.
+        "_" is common use in python, when the iterator is not needed. E.g., running a list using range(), it is the times range 
+        shows up what matters, not its value. "_" is a normal variable conventionally used to show that its value is irrelevant.
         """
         best = None                                                         # Initialize particle storing global best.
         """
-        !!! Note that with this PSO loop structure, weights can only be updated once for each generation and not after each particle iteration.
-        This is okay because otherwise objective function evaluations (simulations) could not be run in parallel for particles from one generation.
+        !!! With this loop structure, weights can only be updated once for each generation and not after each particle iteration.
+        Otherwise, objective function evaluations (simulations) could not be run in parallel for particles from one generation.
         """
         for g in range(self.num_generations):                               # Loop over generations.
+            Fargs = [my_loss_function(self.particle2dict(particle) for particle in pop]
+            for part, fargs in zip(pop, Fargs):
+                part.fargs = fargs 
+            """
+            for part in pop:                                                # Evaluate unweighted terms for all particles in current generation.
+                part.fargs = my_loss_function(self.particle2dict)           # Here: my_loss_function => evaluate/f?
+            """
+            pop_history.append(pop)                                         # Append current particle generation to history.
+            fparams = determine_params(self.update_param, pop_history)
+            fparams_history.append(fparams)
+            for pops in pop_history:
+                for part in pops:
+                    part.fitness = fit * combine_obj(part.fargs, fparams)
+                    if not part.best or part.best_fitness < part.fitness:
+                        part.best = part.position
+                        part.best_fitness = part.fitness
+                    if not best or best.fitness < part.fitness:
+                        best = part.clone()
+            for part in pop:
+                self.updateParticle(part, best, self.phi1, self.phi2)
+         return dict([(k, v)                                                 # Return best position for each hyperparameter.
+                         for k, v in zip(self.bounds.keys(), best.position)]), None           
+            """
+            #flat_pop_history = [part for pop in pop_history for part in pop]# Flatten particle history list.
             fitnesses = pmap(evaluate, list(map(self.particle2dict, pop)))  # Evaluate fitnesses for all particles in current generation.
-            """
-            evaluate is a wrapper function evaluating objective function f. 
-            It gets a list of dicts {"hyperparameter": particle position} for each particle in pop as inputs
-            and evaluates the objective function for each particle based on its position.
-            """
             for part, fitness in zip(pop, fitnesses):                       # Loop over pairs of particles and individual fitnesses.
                 part.fitness = fit * util.score(fitness)                    # util.score: wrapper around objective function evaluations to get score.
-                if not part.best or part.best_fitness < part.fitness:       # Update personal best if required.
-                    part.best = part.position
-                    part.best_fitness = part.fitness
-                if not best or best.fitness < part.fitness:                 # Update global best if required.
-                    best = part.clone()
-            for part in pop:                                                # Update particle for next generation loop.
-                self.updateParticle(part, best, self.phi1, self.phi2)
-            #pop_history.append(pop)                                         # Append particle list of current generation to particle history.
-        return dict([(k, v)                                                 # Return best position for each hyperparameter.
-                        for k, v in zip(self.bounds.keys(), best.position)]), None
+        """
