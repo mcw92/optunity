@@ -34,14 +34,15 @@
 
 Main functions in this module:
 
-* :func:`make_solver`
-* :func:`suggest_solver`
-* :func:`manual`
-* :func:`maximize`
-* :func:`maximize_structured`
-* :func:`minimize`
-* :func:`minimize_structured`
-* :func:`optimize`
+* :func:'make_solver'
+* :func:'suggest_solver'
+* :func:'manual'
+* :func:'maximize'
+* :func:'maximize_structured'
+* :func:'minimize'
+* :func:'minimize_structured'
+* :func:'optimize'
+* :func:'optimize_dyn_PSO'
 
 We recommend using these functions rather than equivalents found in other places,
 e.g. :mod:`optunity.solvers`.
@@ -283,6 +284,82 @@ Optimizes func with given solver.
 
 Returns the solution and a ``namedtuple`` with further details.
 ''' + optimize_results.__doc__ + optimize_stats.__doc__
+
+def optimize_dyn_PSO(solver, func, maximize=True, max_evals=0, pmap=map, decoder=None, update_param=None, eval_obj=None):
+    """Optimizes func with given solver.
+
+    :param solver: the solver to be used, for instance a result from :func:`optunity.make_solver`
+    :param func: the objective function
+    :type func: callable
+    :param maximize: maximize or minimize?
+    :type maximize: bool
+    :param max_evals: maximum number of permitted function evaluations
+    :type max_evals: int
+    :param pmap: the map() function to use, to vectorize use :func:`optunity.parallel.pmap`
+    :type pmap: function
+    :param update_param: function specifying how to set parameters of objective function according to current state of knowledge
+    :type update_param: function
+    :param eval_obj: functional form of objective function, i.e. how to combine parameters and terms to obtain scalar fitness
+    :type eval_obj: function
+
+    Returns the solution and a namedtuple with further details.
+    Please refer to docs of optunity.maximize_results
+    and optunity.maximize_stats.
+
+    """
+
+    if max_evals > 0:
+        f = fun.max_evals(max_evals)(func)
+    else:
+        f = func
+
+    f = fun.logged(f)
+    num_evals = -len(f.call_log)
+
+    time = timeit.default_timer()
+    try:
+        solution, report = solver.optimize(f, maximize, pmap=pmap)
+    except fun.MaximumEvaluationsException:
+        # early stopping because maximum number of evaluations is reached
+        # retrieve solution from the call log
+        report = None
+        if maximize:
+            index, _ = max(enumerate(f.call_log.values()), key=operator.itemgetter(1))
+        else:
+            index, _ = min(enumerate(f.call_log.values()), key=operator.itemgetter(1))
+        solution = list(f.call_log.keys())[index]._asdict()
+    time = timeit.default_timer() - time
+
+    # TODO why is this necessary?
+    if decoder: solution = decoder(solution)
+
+    optimum = f.call_log.get(**solution)
+    num_evals += len(f.call_log)
+
+    # use namedtuple to enforce uniformity in case of changes
+    stats = optimize_stats(num_evals, time)
+
+    call_dict = f.call_log.to_dict()
+    return solution, optimize_results(optimum, stats._asdict(),
+                                      call_dict, report)
+
+
+optimizeDynPSO.__doc__ = '''
+Optimizes func with given solver.
+
+:param solver: the solver to be used, for instance a result from :func:`optunity.make_solver`
+:param func: the objective function
+:type func: callable
+:param maximize: maximize or minimize?
+:type maximize: bool
+:param max_evals: maximum number of permitted function evaluations
+:type max_evals: int
+:param pmap: the map() function to use, to vectorize use :func:`optunity.pmap`
+:type pmap: function
+
+Returns the solution and a ``namedtuple`` with further details.
+''' + optimize_results.__doc__ + optimize_stats.__doc__
+
 
 
 def make_solver(solver_name, *args, **kwargs):
