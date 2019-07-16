@@ -43,6 +43,7 @@ Main classes in this module:
 * :class:`Sobol`
 * :class:`BayesOpt`
 * :class: DynamicPSO
+
 .. warning::
     :class:`CMA_ES` require DEAP_ and NumPy_.
 
