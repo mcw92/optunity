@@ -44,7 +44,7 @@ Main functions in this module:
 * :func:'optimize'
 * :func:'optimize_dyn_PSO'
 
-We recommend using these functions rather than equivalents found in other places,
+Use these functions rather than equivalents found in other places,
 e.g. :mod:`optunity.solvers`.
 
 .. moduleauthor:: Marc Claesen
@@ -74,7 +74,7 @@ def _manual_lines(solver_name=None):
         * list of strings that contain the requested manual
         * solver name(s): name of the solver that was specified or list of all registered solvers.
 
-    Raises ``KeyError`` if ``solver_name`` is not registered."""
+    Raises 'KeyError' if 'solver_name' is not registered."""
     if solver_name:
         return solver_registry.get(solver_name).desc_full, [solver_name]
     else:
@@ -84,7 +84,7 @@ def _manual_lines(solver_name=None):
 def available_solvers():
     """Returns a list of all available solvers.
 
-    These can be used in :func:`optunity.make_solver`.
+    These can be used in :func:'optunity.make_solver'.
     """
     return solver_registry.solver_names()
 
@@ -95,14 +95,17 @@ def manual(solver_name=None):
     :param solver_name: (optional) name of the solver to request a manual from.
         If none is specified, a general manual is printed.
 
-    Raises ``KeyError`` if ``solver_name`` is not registered."""
+    Raises 'KeyError' if 'solver_name' is not registered."""
     if solver_name:
         man = solver_registry.get(solver_name).desc_full
     else:
         man = solver_registry.manual()
     print('\n'.join(man))
 
-
+"""
+DocumentedNamedTuple is a factory function to construct collections.namedtuple
+with a docstring. Useful to attach meta-information to data structures.
+"""
 optimize_results = DocTup("""
 **Result details includes the following**:
 
@@ -153,15 +156,13 @@ def suggest_solver(num_evals=50, solver_name=None, **kwargs):
 
 
 def maximize(f, num_evals=50, solver_name=None, pmap=map, **kwargs):
-    """Basic function maximization routine. Maximizes ``f`` within
-    the given box constraints.
+    """Basic function maximization routine. Maximizes 'f' within
+    given box constraints.
 
-    :param f: the function to be maximized
+    :param f: function to be maximized
     :param num_evals: number of permitted function evaluations
-    :param solver_name: name of the solver to use (optional)
-    :type solver_name: string
-    :param pmap: the map function to use
-    :type pmap: callable
+    :param solver_name: [string] name of the solver to use (optional)
+    :param pmap: [callable] map function to use
     :param kwargs: box constraints, a dict of the following form
         ``{'parameter_name': [lower_bound, upper_bound], ...}``
     :returns: retrieved maximum, extra information and solver info
@@ -285,43 +286,40 @@ Optimizes func with given solver.
 Returns the solution and a ``namedtuple`` with further details.
 ''' + optimize_results.__doc__ + optimize_stats.__doc__
 
-def optimize_dyn_PSO(solver, func, maximize=True, max_evals=0, pmap=map, decoder=None, update_param=None, eval_obj=None):
-    """Optimizes func with given solver.
+def optimize_dyn_PSO(func, maximize=False, max_evals=0, pmap=map, decoder=None, update_param=None, eval_obj=None):
+    """
+    Optimize func with dynamic PSO solver.
+    :param func: [callable] objective function
+    :param maximize: [bool] maximize or minimize?
+    :param max_evals: [int] maximum number of permitted function evaluations
+    :param pmap: [function] map() function to use, to vectorize use :func:`optunity.parallel.pmap`
+    :param update_param: [function] function specifying how to set parameters of objective function
+    :param eval_obj: [function] functional form of objective function (how to combine parameters and terms to obtain scalar fitness)
 
-    :param solver: the solver to be used, for instance a result from :func:`optunity.make_solver`
-    :param func: the objective function
-    :type func: callable
-    :param maximize: maximize or minimize?
-    :type maximize: bool
-    :param max_evals: maximum number of permitted function evaluations
-    :type max_evals: int
-    :param pmap: the map() function to use, to vectorize use :func:`optunity.parallel.pmap`
-    :type pmap: function
-    :param update_param: function specifying how to set parameters of objective function according to current state of knowledge
-    :type update_param: function
-    :param eval_obj: functional form of objective function, i.e. how to combine parameters and terms to obtain scalar fitness
-    :type eval_obj: function
-
-    Returns the solution and a namedtuple with further details.
-    Please refer to docs of optunity.maximize_results
-    and optunity.maximize_stats.
-
+    Returns solution and namedtuple with further details.
+    Refer to docs of optunity.maximize_results and optunity.maximize_stats.
     """
 
     if max_evals > 0:
         f = fun.max_evals(max_evals)(func)
     else:
         f = func
-
+    """
+    logged(f) is a decorator to log unique calls to ``f``. The call log can always be retrieved using ``f.call_log``.
+    Decorating a function that is already being logged has no effect.
+    A decorator is a function that takes another function and extends its behavior without explicitly modifying it.
+    The call log is an ordered dictionary containing all previous function calls. Its keys are dictionaries repre-
+    senting the arguments and its values are the function values.
+    """
     f = fun.logged(f)
     num_evals = -len(f.call_log)
-
-    time = timeit.default_timer()
+    solver = make_solver('dynamic particle swarm')  # Create solver.
+    time = timeit.default_timer()                   # Define platform-specific default timer.
     try:
         solution, report = solver.optimize(f, maximize, pmap=pmap)
     except fun.MaximumEvaluationsException:
-        # early stopping because maximum number of evaluations is reached
-        # retrieve solution from the call log
+        # Early stopping because maximum number of evaluations is reached.
+        # Retrieve solution from call log.
         report = None
         if maximize:
             index, _ = max(enumerate(f.call_log.values()), key=operator.itemgetter(1))
@@ -343,30 +341,22 @@ def optimize_dyn_PSO(solver, func, maximize=True, max_evals=0, pmap=map, decoder
     return solution, optimize_results(optimum, stats._asdict(),
                                       call_dict, report)
 
+optimize_dyn_PSO.__doc__ = '''
+Optimizes func with given dynamic PSO solver.
 
-optimizeDynPSO.__doc__ = '''
-Optimizes func with given solver.
-
-:param solver: the solver to be used, for instance a result from :func:`optunity.make_solver`
-:param func: the objective function
-:type func: callable
-:param maximize: maximize or minimize?
-:type maximize: bool
-:param max_evals: maximum number of permitted function evaluations
-:type max_evals: int
-:param pmap: the map() function to use, to vectorize use :func:`optunity.pmap`
-:type pmap: function
+:param func: [callable] objective function
+:param maximize: [bool] maximize or minimize?
+:param max_evals: [int] maximum number of permitted function evaluations
+:param pmap: [function] map() function to use, to vectorize use :func:`optunity.pmap`
 
 Returns the solution and a ``namedtuple`` with further details.
 ''' + optimize_results.__doc__ + optimize_stats.__doc__
 
 
-
 def make_solver(solver_name, *args, **kwargs):
-    """Creates a Solver from given parameters.
+    """Create solver from given parameters.
 
-    :param solver_name: the solver to instantiate
-    :type solver_name: string
+    :param solver_name: [string] solver to instantiate
     :param args: positional arguments to solver constructor.
     :param kwargs: keyword arguments to solver constructor.
 
@@ -384,7 +374,7 @@ def make_solver(solver_name, *args, **kwargs):
 
 
 def wrap_call_log(f, call_dict):
-    """Wraps an existing call log (as dictionary) around f.
+    """Wrap existing call log (as dictionary) around f.
 
     This allows you to communicate known function values to solvers.
     (currently available solvers do not use this info)
