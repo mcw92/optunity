@@ -51,7 +51,7 @@ except ImportError:
 #@register_solver('TPE',
 #                 'TPE',
 #                 'TPE'
-        )
+#        )
 class TPE(Solver):
     """
     .. include:: /global.rst
