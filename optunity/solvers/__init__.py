@@ -42,7 +42,7 @@ Main classes in this module:
 * :class:`TPE`
 * :class:`Sobol`
 * :class:`BayesOpt`
-
+* :class: DynamicPSO
 .. warning::
     :class:`CMA_ES` require DEAP_ and NumPy_.
 
@@ -73,3 +73,4 @@ from .CMAES import CMA_ES
 from .TPE import TPE
 from .Sobol import Sobol
 from .BayesOpt import BayesOpt
+from .DynamicPSO import DynamicPSO
