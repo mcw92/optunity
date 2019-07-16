@@ -75,7 +75,7 @@ class Solver(SolverBase):
 
         :param f: the objective function
         :type f: callable
-        :param maximize: do we want to maximizes?
+        :param maximize: maximize or minimize?
         :type maximize: boolean
         :param pmap: the map() function to use
         :type pmap: callable
