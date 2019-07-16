@@ -48,6 +48,10 @@ try:
 except ImportError:
     _hyperopt_available = False
 
+#@register_solver('TPE',
+#                 'TPE',
+#                 'TPE'
+        )
 class TPE(Solver):
     """
     .. include:: /global.rst
