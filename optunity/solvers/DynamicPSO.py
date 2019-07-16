@@ -31,7 +31,6 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import math
-import numpy as np
 import operator as op
 import random
 import array
@@ -44,26 +43,26 @@ from .Sobol import Sobol
 from . import ParticleSwarm                                                             # import normal PSO from optunity
 # Classes required for dynamic PSO can then inherit from base classes implemented in normal PSO.
 
-def determine_params(func=None, *args, **kwargs):
-    """
-    Update weights according to function func specified by user. If no function is specified, nothing will happen.
-    """
-    if func==None: pass                             # If no function to adapt weights is specified by the user, do nothing.
-    else:                                           # Otherwise, adapt/update weights according to specified function func
-        adapted_weights = func(*args, **kwargs)
-        return adapted_weights
-
-def combine_obj(part, func, curr_weights):
-    """
-    Re-evaluate fitness for all particles in history using most recent weights according to current state of knowledge.
-    :param part: particle whose score is to be updated
-    :param func: function specifying mathematical form of objective function, i.e. how terms and weights are to be combined to yield score
-    :param curr_weights: current set of weights to be used in evaluation
-    """
-    part.fitness = func(part.fargs, curr_weights)
-    if part.fitness < part.best_fitness: part.best_fitness = part.fitness # Update personal best if required.
-    '''I have to compare each historical particle's best fitness with the particle's personal best fitness from the current generation.'''
-    pass
+#def determine_params(func=None, *args, **kwargs):
+#    """
+#    Update weights according to function func specified by user. If no function is specified, nothing will happen.
+#    """
+#    if func==None: pass                             # If no function to adapt weights is specified by the user, do nothing.
+#    else:                                           # Otherwise, adapt/update weights according to specified function func
+#        adapted_weights = func(*args, **kwargs)
+#        return adapted_weights
+#
+#def combine_obj(part, func, curr_weights):
+#    """
+#    Re-evaluate fitness for all particles in history using most recent weights according to current state of knowledge.
+#    :param part: particle whose score is to be updated
+#    :param func: function specifying mathematical form of objective function, i.e. how terms and weights are to be combined to yield score
+#    :param curr_weights: current set of weights to be used in evaluation
+#    """
+#    part.fitness = func(part.fargs, curr_weights)
+#    if part.fitness < part.best_fitness: part.best_fitness = part.fitness # Update personal best if required.
+#    '''I have to compare each historical particle's best fitness with the particle's personal best fitness from the current generation.'''
+#    pass
 
 @register_solver('dynamic particle swarm',                                                          # name to register solver with
                  'dynamic particle swarm optimization',                                             # one-line description of solver
@@ -85,13 +84,13 @@ def combine_obj(part, func, curr_weights):
                   'This solver performs num_particles*num_generations function evaluations.'
                   ])
 
-class DynamicPSO(ParticleSwarm)
+class DynamicPSO(ParticleSwarm):
     """
     Dynamic particle swarm optimization solver class.
     """
 
     class DynamicParticle(ParticleSwarm.Particle):
-        def __init__(self, position, speed, best, fitness, best_fitness, fargs, fparams):
+        def __init__(self, position, speed, best, fitness, best_fitness, fargs):
             """Construct a dynamic particle"""
             super().__init__(position, speed, best, fitness, best_fitness)
             """
@@ -104,14 +103,12 @@ class DynamicPSO(ParticleSwarm)
             :param fparams: vector containing different parameters of objective function for this particle
             """
             self.fargs = fargs
-            #self.fparams = fparams
         
         def clone(self):
-        """Clone this dynamic particle."""
+            """Clone this dynamic particle."""
             return DynamicPSO.DynamicParticle(position=self.position[:], speed=self.speed[:],
                                               best=self.best[:], fitness=self.fitness,
-                                              best_fitness=self.best_fitness,fargs=self.fargs[:],
-                                              self.fparams[:])
+                                              best_fitness=self.best_fitness,fargs=self.fargs[:])
     """    
     The DynamicPSO class definition does not have an .__init__() because it inherits from ParticleSwarm and
     .__init__() does not really do anything differently for DynamicPSO than it already does for ParticleSwarm.
@@ -160,24 +157,24 @@ class DynamicPSO(ParticleSwarm)
     """
     
     @_copydoc(Solver.optimize)
-    def optimize(self, f, maximize=True, pmap=map):             # f is objective function to be optimized.
-        
-        # map(function,iterable,...): Return an iterator that applies function to every item
-        # of iterable, yielding the results. If additional iterable arguments are passed,
-        # function must take that many arguments and is applied to the items from all iterables
-        # in parallel. With multiple iterables, the interator stops when the shortest iterable
-        # is exhausted.
-
+    def optimize(self, f, maximize=False, pmap=map):             # f is objective function to be optimized.
+        """
+        map(function,iterable,...): Return an iterator that applies function to every item
+        of iterable, yielding the results. If additional iterable arguments are passed,
+        function must take that many arguments and is applied to the items from all iterables
+        in parallel. With multiple iterables, the interator stops when the shortest iterable
+        is exhausted.
+        """
         @functools.wraps(f)                                     # wrapper function evaluating f
         def evaluate(d):
-        """
-        wrapper function evaluating objective function f accepting a dict {"hyperparameter": particle position}
-        """
+            """
+            wrapper function evaluating objective function f accepting a dict {"hyperparameter": particle position}
+            """
             return f(**d)
-        """
-        Determine whether optimization problem is maximization or minimization problem.
-        The 'optimize' function is a maximizer, i.e. to minimze, basically maximize -f.
-        """
+        
+        #Determine whether optimization problem is maximization or minimization problem.
+        #The 'optimize' function is a maximizer, i.e. to minimze, basically maximize -f.
+        
         if maximize:
             fit = 1.0
         else:
