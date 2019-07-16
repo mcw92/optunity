@@ -21,7 +21,7 @@ Available subpackages
 tests
     regression test suite
 solvers
-    solver implementations and auxillary functions
+    solver implementations and auxiliary functions
 
 Utilities
 ---------
@@ -35,7 +35,7 @@ __author__
 
 """
 
-from .api import manual, maximize, minimize, optimize, available_solvers, maximize_structured, minimize_structured
+from .api import manual, maximize, minimize, optimize, available_solvers, maximize_structured, minimize_structured, optimize_dyn_PSO
 from .api import wrap_call_log, wrap_constraints, make_solver, suggest_solver
 from .cross_validation import cross_validated, generate_folds
 from .parallel import pmap
@@ -49,4 +49,5 @@ __all__ = ['manual', 'maximize', 'minimize', 'optimize',
            'wrap_call_log', 'wrap_constraints', 'make_solver',
            'suggest_solver', 'cross_validated', 'generate_folds',
            'pmap', 'available_solvers', 'call_log2dataframe',
-           'maximize_structured', 'minimize_structured']
+           'maximize_structured', 'minimize_structured',
+           'optimize_dyn_PSO']
