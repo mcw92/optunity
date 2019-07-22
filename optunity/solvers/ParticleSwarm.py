@@ -236,11 +236,11 @@ class ParticleSwarm(Solver):
         return part
 
     def updateParticle(self, part, best, phi1, phi2):
-        """Update the particle."""
+        """Propagate particle, i.e. update its speed and position according to current personal and global best."""
         u1 = (random.uniform(0, phi1) for _ in range(len(part.position)))
         u2 = (random.uniform(0, phi2) for _ in range(len(part.position)))
-        v_u1 = map(op.mul, u1,
-                    map(op.sub, part.best, part.position))
+        v_u1 = map(op.mul, u1,                              # operator.mul(a,b) returns a*b for numbers a and b.
+                    map(op.sub, part.best, part.position))  # operator.sub(a,b) returns a-b.
         v_u2 = map(op.mul, u2,
                     map(op.sub, best.position, part.position))
         part.speed = array.array('d', map(op.add, part.speed,
