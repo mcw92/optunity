@@ -48,8 +48,9 @@ from . import util
 from .Sobol import Sobol
 from . import ParticleSwarm # import normal PSO from optunity, dynamic PSO classes can then inherit from ParticleSwarm classes.
 
-def updateParam(func=None, pop_history, num_params):
+def updateParam(pop_history, func=None):
     """Update/determine objective function parameters."""
+    # Add num_params of objective function as argument?
     if func is not None:
         return func(pop_history)
     else:
@@ -195,7 +196,7 @@ class DynamicPSO(ParticleSwarm):
                 part.fargs = fargs 
 
             pop_history.append(pop)                                 # Append current particle generation to history.
-            fparams = updateParam(self._update_param, pop_history)  # Calculate obj. func. param.s according to current state of knowledge.
+            fparams = updateParam(pop_history, self._update_param)  # Calculate obj. func. param.s according to current state of knowledge.
             fparams_history.append(fparams)                         # Append current obj. func. parameter set to history.
             for pops in pop_history:                                # Update fitnesses using most recent obj. param.s.
                 for idx, part in zip(self.num_particles, pops):
@@ -207,8 +208,7 @@ class DynamicPSO(ParticleSwarm):
                         best = part.clone()
             for part in pop:
                 self.updateParticle(part, best, self.phi1, self.phi2)
-         return dict([(k, v)                                                 # Return best position for each hyperparameter.
-                         for k, v in zip(self.bounds.keys(), best.position)]), None
+        return dict([(k, v) for k, v in zip(self.bounds.keys(), best.position)]), None # Return best position for each hyperparameter.
 
         #    fitnesses = pmap(evaluate, list(map(self.particle2dict, pop)))  # Evaluate fitnesses for all particles in current generation.
         #    for part, fitness in zip(pop, fitnesses):                       # Loop over pairs of particles and individual fitnesses.
