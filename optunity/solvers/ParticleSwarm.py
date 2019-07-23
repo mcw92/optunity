@@ -270,7 +270,7 @@ class ParticleSwarm(Solver):
             return f(**d)
 
         # Determine whether optimization problem is maximization or minimization problem.
-        # The 'optimize' function is a maximizer, so if we want to minimze, we basically
+        # The 'optimize' function is a maximizer, so if we want to minimize, we basically
         # maximize -f.
 
         if maximize:
