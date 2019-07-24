@@ -319,7 +319,7 @@ def optimize_dyn_PSO(func, box, maximize=False, max_evals=0, num_args_obj=1, num
     solver = make_solver(**suggestion)  # Create solver.
     time = timeit.default_timer()                   # Define platform-specific default timer.
     try:
-        solution, report = solver.optimize(f, num_args_obj, num_param_obj, maximize, pmap=pmap)
+        solution, report = solver.optimize(f, num_args_obj, num_params_obj, maximize, pmap=pmap)
     except fun.MaximumEvaluationsException:
         # Early stopping because maximum number of evaluations is reached.
         # Retrieve solution from call log.
