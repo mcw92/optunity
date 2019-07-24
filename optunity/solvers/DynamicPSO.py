@@ -122,15 +122,34 @@ class DynamicPSO(ParticleSwarm):
             return DynamicPSO.DynamicParticle(position=self.position[:], speed=self.speed[:],
                                               best=self.best[:], fitness=self.fitness,
                                               best_fitness=self.best_fitness,fargs=self.fargs[:])
-     
+
     def __init__(self, num_particles, num_generations, max_speed=None, phi1=1.5, phi2=2.0, update_param=None, eval_obj=None, **kwargs):
-        super().__init__(self, num_particles, num_generations, max_speed=None, phi1=1.5, phi2=2.0, **kwargs)
+        """ Initialize a dynamic PSO solver."""
+        assert all([len(v) == 2 and v[0] <= v[1]        # Check format of bounds given for each hyperparameter.
+            for v in kwargs.values()]), 'kwargs.values() are not [lb, ub] pairs'
+        self._bounds = kwargs                           # len(self.bounds) gives number of hyperparameters considered.
+        self._num_particles = num_particles
+        self._num_generations = num_generations
+
+        self._sobolseed = random.randint(100,2000)      # random.randint(a,b) returns random integer N such that a <= N <= b.
+
+        if max_speed is None: max_speed = 0.7 / num_generations
+        self._max_speed = max_speed
+        self._smax = [self.max_speed * (b[1] - b[0]) for _, b in self.bounds.items()]
+        # dictionary.items() returns view object displaying (key,value) tuple pair list.
+
+        self._smin = list(map(op.neg, self.smax))       # operator.neg(obj) returns obj negated (-obj).
+
+        self._phi1 = phi1
+        self._phi2 = phi2
+
+        #super().__init__(num_particles, num_generations, max_speed, phi1, phi2, **kwargs)
         if update_param is None: 
-            self._update_param = determine_params
+            self._update_param = updateParam
         else:
             self._update_param = update_param
         if eval_obj is None: 
-            self._eval_obj = combine_obj
+            self._eval_obj = evaluateObjFunc
         else:
             self._eval_obj = eval_obj
 
@@ -157,7 +176,7 @@ class DynamicPSO(ParticleSwarm):
     # Convert particle to dict format {"hyperparameter": particle position}
     
     @_copydoc(Solver.optimize)
-    def optimize(self, f, maximize=False, pmap=map):             # f is objective function to be optimized.
+    def optimize(self, f, num_args_obj, num_params_obj, maximize=False, pmap=map):             # f is objective function to be optimized.
     
     # map(function,iterable,...): Return an iterator that applies function to every item
     # of iterable, yielding the results. If additional iterable arguments are passed,
@@ -165,10 +184,10 @@ class DynamicPSO(ParticleSwarm):
     # in parallel. With multiple iterables, the interator stops when the shortest iterable
     # is exhausted.
         
-        @functools.wraps(f)                                     # wrapper function evaluating f
-        def evaluate(d):
-            """Wrapper function evaluating objective function f accepting a dict {"hyperparameter": particle position}."""
-            return f(**d)
+        #@functools.wraps(f)                                     # wrapper function evaluating f
+        #def evaluate(d):
+        #    """Wrapper function evaluating objective function f accepting a dict {"hyperparameter": particle position}."""
+        #    return f(**d)
         
         # Maximization or minimization problem?
         # 'optimize' function is a maximizer, i.e. to minimze, maximize -f.
