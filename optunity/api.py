@@ -302,19 +302,23 @@ def optimize_dyn_PSO(func, box, maximize=False, max_evals=0, num_args_obj=1, num
     """
 
     if max_evals > 0:
+        # Decorate f to enforce maximum number of function evaluations. Throws MaximumEvaluationsException during
+        # evaluations after the maximum is reached. Adds a field `f.num_evals` tracking the number of evaluations
+        # performed.
         f = fun.max_evals(max_evals)(func)
     else:
         f = func
-    """
-    logged(f) is a decorator to log unique calls to ``f``. The call log can always be retrieved using ``f.call_log``.
-    Decorating a function that is already being logged has no effect.
-    A decorator is a function that takes another function and extends its behavior without explicitly modifying it.
-    The call log is an ordered dictionary containing all previous function calls. Its keys are dictionaries repre-
-    senting the arguments and its values are the function values.
-    """
+    
+    # logged(f) is a decorator to log unique calls to `f`. The call log can always be retrieved using `f.call_log`.
+    # Decorating a function that is already being logged has no effect.
+    # A decorator is a function that takes another function and extends its behavior without explicitly modifying it.
+    # The call log is an ordered dictionary containing all previous function calls. Its keys are dictionaries repre-
+    # senting the arguments, its values are the function values.
+    
     f = fun.logged(f)
     num_evals = -len(f.call_log)
     suggestion = suggest_solver(num_evals=max_evals, solver_name="dynamic particle swarm", **box)
+    print("Solver setup used:")
     print(suggestion)
     solver = make_solver(**suggestion)  # Create solver.
     time = timeit.default_timer()                   # Define platform-specific default timer.
