@@ -33,14 +33,16 @@
 #########
 # TO DO #
 #########
+# Check which implementation in dynamic PSO loop is faster.
 # Implement default functions for determine_params and combine_obj.
 # Implement dynamic PSO loop.
 
 import math
+import numpy
 import operator as op
 import random
 import array
-import functools
+import functools    # higher-order functions and operations on callable objects
 
 from .solver_registry import register_solver
 from .util import Solver, _copydoc, uniform_in_bounds
@@ -48,20 +50,19 @@ from . import util
 from .Sobol import Sobol
 from . import ParticleSwarm # import normal PSO from optunity, dynamic PSO classes can then inherit from ParticleSwarm classes.
 
-def updateParam(pop_history, func=None):
+def updateParam(pop_history, num_args=1, num_params=0, func=None, **kwargs):
     """Update/determine objective function parameters."""
-    # Add num_params of objective function as argument?
-    if func is not None:
-        return func(pop_history)
-    else:
-        pass
+    #if func is not None:
+    #    return func(pop_history)
+    #else:
+    #    return numpy.ones(num_params)
+    return numpy.ones(num_params)
 #    Update weights according to function func specified by user. If no function is specified, nothing will happen.
-#    if func==None: pass                             # If no function to adapt weights is specified by the user, do nothing.
 #    else:                                           # Otherwise, adapt/update weights according to specified function func
 #        adapted_weights = func(*args, **kwargs)
 #        return adapted_weights
 
-def evaluateObjFunc(args, params=None, func=None):
+def evaluateObjFunc(args, params=None, func=None, **kwargs):
     """Calculate scalar fitness according to objective function, given its arguments and parameters.
     :param args:   [vector] (unweighted) arguments of objective function
     :param params: [vector] parameters of objective function
@@ -69,6 +70,7 @@ def evaluateObjFunc(args, params=None, func=None):
                    how to combine arguments and parameters to obtain scalar fitness
     :returns:      objective function value, i.e. scalar fitness
     """
+
     if func is not None and params is not None:
         return func(args, params)
     else:
@@ -166,7 +168,7 @@ class DynamicPSO(ParticleSwarm):
         part = DynamicPSO.DynamicParticle(position=array.array('d', vector),
                                       speed=array.array('d', map(random.uniform,
                                                                  self.smin, self.smax)),
-                                      best=None, fitness=None, best_fitness=None,
+                                      best=None, fitness=0, best_fitness=0,
                                       fargs=None)
         return part
 
@@ -176,18 +178,22 @@ class DynamicPSO(ParticleSwarm):
     # Convert particle to dict format {"hyperparameter": particle position}
     
     @_copydoc(Solver.optimize)
-    def optimize(self, f, num_args_obj, num_params_obj, maximize=False, pmap=map):             # f is objective function to be optimized.
+    def optimize(self, f, num_args_obj, num_params_obj, maximize=False, pmap=map):  # f is objective function to be optimized.
     
     # map(function,iterable,...): Return an iterator that applies function to every item
     # of iterable, yielding the results. If additional iterable arguments are passed,
     # function must take that many arguments and is applied to the items from all iterables
     # in parallel. With multiple iterables, the interator stops when the shortest iterable
     # is exhausted.
-        
-        #@functools.wraps(f)                                     # wrapper function evaluating f
-        #def evaluate(d):
-        #    """Wrapper function evaluating objective function f accepting a dict {"hyperparameter": particle position}."""
-        #    return f(**d)
+       
+        # functools.wraps(wrapped) is a convenience function for invoking update_wrapper() as a function decorator when
+        # defining a wrapper function. functools.update_wrapper(wrapper, wrapped) updates a wrapper function to look 
+        # like the wrapped function.
+
+        @functools.wraps(f)                                     # wrapper function evaluating f
+        def evaluate(d):
+            """Wrapper function evaluating objective function f accepting a dict {"hyperparameter": particle position}."""
+            return f(**d)
         
         # Maximization or minimization problem?
         # 'optimize' function is a maximizer, i.e. to minimze, maximize -f.
@@ -209,26 +215,34 @@ class DynamicPSO(ParticleSwarm):
         # With this loop structure, parameters can only be updated once for each generation and not after each particle iteration.
         # In exchange, calculations of obj. func. contributions (simulations) can be run in parallel within one generation.
         
-        for g in range(self.num_generations):                       # Loop over generations.
-            Fargs = [ f(self.particle2dict(part)) for part in pop ] # Calculate obj. func. contributions for all particles in generation.
-            for part, fargs in zip(pop, Fargs):                     # Set objective function arguments as particle attributes.
+        for g in range(self.num_generations):                               # Loop over generations.
+            print("Generation",repr(int(g)+1))
+            Fargs = [ evaluate(self.particle2dict(part)) for part in pop ]  # Calculate obj. func. contributions for all particles in generation.
+            #Fargs = pmap(evaluate, list(map(self.particle2dict, pop)))     # alternativel calculation method
+            for idx, (part, fargs) in enumerate(zip(pop, Fargs)):                             # Set objective function arguments as particle attributes.
                 part.fargs = fargs 
-
+                print("Particle", repr(int(idx)+1),": position:", repr(numpy.around(part.position,2)),", arguments:", repr(numpy.around(numpy.asarray(part.fargs),2)))
             pop_history.append(pop)                                 # Append current particle generation to history.
-            fparams = updateParam(pop_history, self._update_param)  # Calculate obj. func. param.s according to current state of knowledge.
+            # Calculate obj. func. param.s according to current state of knowledge.
+            fparams = updateParam(pop_history, num_args=num_args_obj, num_params=num_params_obj, func=self._update_param)  
+            print("Parameters: ", repr(fparams))
             fparams_history.append(fparams)                         # Append current obj. func. parameter set to history.
             for pops in pop_history:                                # Update fitnesses using most recent obj. param.s.
-                for idx, part in zip(self.num_particles, pops):
-                    fitness = fit * evaluateObjFunc(part.fargs, fparams, self._eval_obj)
+                #for part_curr, part in zip(pop, pops):
+                for idx, part in zip(range(int(self.num_particles)), pops):
+                    #print(repr(part.fargs[:]))
+                    fitness = fit * util.score(evaluateObjFunc(args=part.fargs[:], params=fparams[:], func=self._eval_obj))
                     if not part.best or pop[idx].best_fitness < fitness:
                         pop[idx].best = part.position
                         pop[idx].best_fitness = fitness
+                    #if not part.best or part_curr.best_fitness < fitness:
+                        #part_curr.best = part.position
+                        #part_curr.best_fitness = fitness
                     if not best or best.fitness < fitness:
                         best = part.clone()
             for part in pop:
                 self.updateParticle(part, best, self.phi1, self.phi2)
+        print(fparams_history)
+        print("Particle history: ", repr(pop_history))
+        print(len(pop_history))
         return dict([(k, v) for k, v in zip(self.bounds.keys(), best.position)]), None # Return best position for each hyperparameter.
-
-        #    fitnesses = pmap(evaluate, list(map(self.particle2dict, pop)))  # Evaluate fitnesses for all particles in current generation.
-        #    for part, fitness in zip(pop, fitnesses):                       # Loop over pairs of particles and individual fitnesses.
-        #        part.fitness = fit * util.score(fitness)                    # util.score: wrapper around obj. func. evaluations to get score.
