@@ -237,20 +237,18 @@ class ParticleSwarm(Solver):
 
     def updateParticle(self, part, best, phi1, phi2):
         """Propagate particle, i.e. update its speed and position according to current personal and global best."""
-        u1 = (random.uniform(0, phi1) for _ in range(len(part.position)))
-        u2 = (random.uniform(0, phi2) for _ in range(len(part.position)))
-        v_u1 = map(op.mul, u1,                              # operator.mul(a,b) returns a*b for numbers a and b.
-                    map(op.sub, part.best, part.position))  # operator.sub(a,b) returns a-b.
-        v_u2 = map(op.mul, u2,
-                    map(op.sub, best.position, part.position))
-        part.speed = array.array('d', map(op.add, part.speed,
+        u1 = (random.uniform(0, phi1) for _ in range(len(part.position)))           # Generate phi1 and phi2 random number coeffiecents
+        u2 = (random.uniform(0, phi2) for _ in range(len(part.position)))           # for each hyperparameter
+        v_u1 = map(op.mul, u1, map(op.sub, part.best, part.position))               # Calculate phi1 and phi2 velocity contributions.      
+        v_u2 = map(op.mul, u2, map(op.sub, best.position, part.position))
+        part.speed = array.array('d', map(op.add, part.speed,                       # Add up velocity contributions.
                                           map(op.add, v_u1, v_u2)))
-        for i, speed in enumerate(part.speed):
+        for i, speed in enumerate(part.speed):                                      # Constrain particle speed to range (smin, smax).
             if speed < self.smin[i]:
                 part.speed[i] = self.smin[i]
             elif speed > self.smax[i]:
                 part.speed[i] = self.smax[i]
-        part.position[:] = array.array('d', map(op.add, part.position, part.speed))
+        part.position[:] = array.array('d', map(op.add, part.position, part.speed)) # Add velocity to position to propagate particle.
 
     def particle2dict(self, particle):                          # Convert particle to dict format {"hyperparameter": particle_position}.
         return dict([(k, v) for k, v in zip(self.bounds.keys(), # self.bound.keys() returns hyperparameter names.
