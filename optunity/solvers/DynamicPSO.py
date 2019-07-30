@@ -61,25 +61,25 @@ def updateParam(pop_history, num_params=0, func=None, **kwargs):
     """
     if func is not None:
         fparams = func(pop_history, num_params, **kwargs)
-        print("User-specified updateParam() evaluates to", fparams,".")
+        #print("User-specified updateParam() evaluates to", fparams,".")
         return fparams 
     else:
-        print("Default objective function parameters are used.")
+        #print("Default objective function parameters are used.")
         return numpy.ones(num_params)
 
 def evaluateObjFunc(args, params=None, func=None, **kwargs):
     """Calculate scalar fitness according to objective function, given its arguments and parameters.
     If `func` is None, the  scalar product `args[i]*params[i]` is returned.
-    If `params` is None, the sum of the elements `args[i]` is returned.
+
     :param args:   [vector] (unweighted) arguments of/contributions to objective function
     :param params: [vector] parameters of objective function
     :param func:   [function] function specifying functional form of objective function, i.e.
                    how to combine arguments and parameters to obtain scalar fitness
-    :returns:      objective function value (scalar fitness)
+    :returns:      [float] objective function value (scalar fitness)
     """
 
     if func is not None and params is not None:
-        print("User-specified combineObj() evaluates to", numpy.around(func(args, params, **kwargs), 2), ".")
+        #print("User-specified combineObj() evaluates to", numpy.around(func(args, params, **kwargs), 2), ".")
         return func(args, params, **kwargs)
     else:
         if params is not None:
@@ -205,10 +205,10 @@ class DynamicPSO(ParticleSwarm):
                 part.speed[i] = self.smin[i]
             elif speed > self.smax[i]:
                 part.speed[i] = self.smax[i]
-        print("Old position:", part.position[:])
-        print("Speed:", part.speed[:])
+        #print("Old position:", part.position[:])
+        #print("Speed:", part.speed[:])
         part.position[:] = array.array('d', map(op.add, part.position, part.speed)) # Add velocity to position to propagate particle.
-        print("New position:", part.position[:])
+        #print("New position:", part.position[:])
     # updateParticle is inherited from ParticleSwarm class without changes.
     # => Propagate particle, i.e. update its speed and position according to current personal and global best.
     # particle2dict is inherited from ParticleSwarm class without changes.
@@ -236,7 +236,7 @@ class DynamicPSO(ParticleSwarm):
             fit = 1.0   # `optimize` function is a maximizer,
         else:           # i.e. to minimize, maximize -f.
             fit = -1.0
-
+        
         pop = [self.generate() for _ in range(self.num_particles)]  # Randomly generate list of num_particle new particles. 
         pop_history = []                                            # Initialize particle history as list.
         fparams_history = []                                        # Initialize obj. func. param. history as list.
@@ -250,30 +250,32 @@ class DynamicPSO(ParticleSwarm):
         # In exchange, calculations of obj. func. contributions (simulations) can be run in parallel within one generation.
         
         for g in range(self.num_generations):                                       # Loop over generations.
-            print("------------------------------------------------------------------------------------")
-            print("Generation",repr(int(g)+1))
+            #print("------------------------------------------------------------------------------------")
+            #print("Generation",repr(int(g)+1))
             Fargs = [ evaluate(self.particle2dict(part)) for part in pop ]          # Calculate obj. func. contributions for all particles in generation.
             for idx, (part, fargs) in enumerate(zip(pop, Fargs)):                   # Set objective function arguments as particle attributes.
                 part.fargs = fargs 
-                print("Particle", repr(int(idx)+1),"at position", repr(numpy.around(part.position, 2)),"with obj. func. arguments", repr(numpy.around(numpy.asarray(part.fargs), 2)))
+                #print("Particle", repr(int(idx)+1),"at position", repr(numpy.around(part.position, 2)),"with obj. func. arguments", repr(numpy.around(numpy.asarray(part.fargs), 2)))
             pop_history.append(pop)                                                 # Append current particle generation to history.
-            print(updateParam(pop_history, num_params_obj, self._update_param))
             fparams = updateParam(pop_history, num_params_obj, self._update_param)  # Update obj. func. param.s.
-            print(fparams)
-            print("Current obj. func. parameters: ", repr(numpy.around(fparams, 2)))
+            #print("Current obj. func. parameters: ", repr(numpy.around(fparams, 2)))
             fparams_history.append(fparams)                                         # Append current obj. func. parameter set to history.
             for pops in pop_history:                                                # Update fitnesses using most recent obj. param.s.
                 assert len(pops) == self.num_particles, "Number of particles in generation does not match `num_particles`."
                 for idx, part in enumerate(pops):
                     fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj))
+                    #print("Fitness =", fitness)
                     if not part.best or pop[idx].best_fitness < fitness:
+                        #print("Personal best is updated in particle history.")
                         pop[idx].best = part.position
                         pop[idx].best_fitness = fitness
-                    if not best or best.fitness < fitness:
+                    if not best or best.best_fitness < fitness:
+                        #print("Global best is updated.")
                         best = part.clone()
+                        #print(self.particle2dict(best))
             for part in pop:
                 self.updateParticle(part, best, self.phi1, self.phi2)
-        print(fparams_history)
+            #print("Best position so far:", best.position, "with fitness", best.best_fitness)
+        #print(fparams_history)
         #print("Particle history: ", repr(pop_history))
-        #print(len(pop_history))
         return dict([(k, v) for k, v in zip(self.bounds.keys(), best.position)]), None # Return best position for each hyperparameter.
