@@ -33,8 +33,6 @@
 #########
 # TO DO #
 #########
-# Check which implementation in dynamic PSO loop is faster.
-# Implement dynamic PSO loop.
 # Update solver manual.
 
 import math             # mathematical functions
@@ -43,10 +41,11 @@ import operator as op   # standard operators as functions
 import random           # generate pseudo-random numbers
 import array            # efficient arrays of numeric values
 import functools        # higher-order functions and operations on callable objects
+import os
 
 # optunity imports
 from .solver_registry import register_solver
-from .util import Solver, _copydoc, uniform_in_bounds
+from .util import Solver, _copydoc, uniform_in_bounds, loguniform_in_bounds
 from . import util
 from .Sobol import Sobol
 from . import ParticleSwarm
@@ -180,6 +179,7 @@ class DynamicPSO(ParticleSwarm):
             # util.scale_unit_to_bounds(seq, bounds) scales seq elements (unit hypercube) to box constraints in bounds
         else: 
             vector = uniform_in_bounds(self.bounds)
+            #vector = loguniform_in_bounds(self.bounds)
             # util.uniform_in_bounds(bounds) generates random uniform sample between `bounds`.
 
         # array.array(typecode[,initializer]) creates a new array whose items are restricted by typecode and
@@ -215,7 +215,7 @@ class DynamicPSO(ParticleSwarm):
     # => Convert particle to dict format {"hyperparameter": particle position}
     
     @_copydoc(Solver.optimize)
-    def optimize(self, f, num_args_obj, num_params_obj, maximize=False, pmap=map):  # f is objective function to be optimized.
+    def optimize(self, f, domains, num_args_obj, num_params_obj, maximize=False, pmap=map):  # f is objective function to be optimized.
         """Actual solver implementing dynamic particle swarm optimization.""" 
     # map(function,iterable,...): Return iterator that applies function to every item
     # of iterable, yielding the results. If additional iterable arguments are passed,
@@ -248,23 +248,30 @@ class DynamicPSO(ParticleSwarm):
         
         # With this loop structure, parameters can only be updated once for each generation and not after each particle iteration.
         # In exchange, calculations of obj. func. contributions (simulations) can be run in parallel within one generation.
-        
+        print(self.bounds)
         for g in range(self.num_generations):                                       # Loop over generations.
-            #print("------------------------------------------------------------------------------------")
-            #print("Generation",repr(int(g)+1))
+            print("---------------------------------------------------------")
+            print("---------------------------------------------------------")
+            print("Generation",repr(int(g)+1))
+            print("---------------------------------------------------------")
+            print("---------------------------------------------------------")
             Fargs = [ evaluate(self.particle2dict(part)) for part in pop ]          # Calculate obj. func. contributions for all particles in generation.
             for idx, (part, fargs) in enumerate(zip(pop, Fargs)):                   # Set objective function arguments as particle attributes.
                 part.fargs = fargs 
-                #print("Particle", repr(int(idx)+1),"at position", repr(numpy.around(part.position, 2)),"with obj. func. arguments", repr(numpy.around(numpy.asarray(part.fargs), 2)))
             pop_history.append(pop)                                                 # Append current particle generation to history.
             fparams = updateParam(pop_history, num_params_obj, self._update_param)  # Update obj. func. param.s.
-            #print("Current obj. func. parameters: ", repr(numpy.around(fparams, 2)))
             fparams_history.append(fparams)                                         # Append current obj. func. parameter set to history.
-            for pops in pop_history:                                                # Update fitnesses using most recent obj. param.s.
+            for idg, pops in enumerate(pop_history):                                                # Update fitnesses using most recent obj. param.s.
                 assert len(pops) == self.num_particles, "Number of particles in generation does not match `num_particles`."
+                print("--------------------\n", "Generation", str(idg+1), "\n--------------------")
+                with open("../log.log", "a") as log:
+                    log.writelines("--------------------\n" + "Generation " + str(idg+1) + "\n--------------------\n")
                 for idx, part in enumerate(pops):
                     fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj))
-                    #print("Fitness =", fitness)
+                    line = "Particle " + repr(int(idx)+1) +" at " + repr(part.position) + " with obj. func. args " + repr(part.fargs) + ", fitness " + repr(fitness)
+                    print(line)
+                    with open("../log.log", "a") as log:
+                        log.writelines(line + "\n")
                     if not part.best or pop[idx].best_fitness < fitness:
                         #print("Personal best is updated in particle history.")
                         pop[idx].best = part.position
@@ -275,7 +282,10 @@ class DynamicPSO(ParticleSwarm):
                         #print(self.particle2dict(best))
             for part in pop:
                 self.updateParticle(part, best, self.phi1, self.phi2)
-            #print("Best position so far:", best.position, "with fitness", best.best_fitness)
+            print("Current obj. func. parameters: ", repr(numpy.around(fparams, 2)) + "\n")
+            print("Best position so far:", best.position, "with fitness", best.best_fitness)
+            with open("../log.log", "a") as log:
+                log.writelines("Current obj. func. parameters: " + repr(numpy.around(fparams, 2)) + "\n")
+                log.writelines("Best position so far: " + repr(best.position) + " with fitness " + repr(best.best_fitness) + "\n--------------------\n")
         #print(fparams_history)
-        #print("Particle history: ", repr(pop_history))
         return dict([(k, v) for k, v in zip(self.bounds.keys(), best.position)]), None # Return best position for each hyperparameter.
