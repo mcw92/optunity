@@ -34,6 +34,7 @@
 import abc
 import random
 import threading
+import numpy
 
 def uniform_in_bounds(bounds):
     """Generates a random uniform sample between ``bounds``.
@@ -42,6 +43,21 @@ def uniform_in_bounds(bounds):
     :type bounds: dict {"name": [lb ub], ...}
     """
     return map(random.uniform, *zip(*bounds.values()))
+
+def loguniform_in_bounds(bounds):
+    """Generates a random loguniform sample between ``bounds``.
+
+    :param bounds: the bounds we must adhere to
+    :type bounds: dict {"name": [lb,ub], ...}
+    """
+    def logUni(lb, ub):
+        return numpy.power(10, numpy.random.uniform(numpy.log10(lb), numpy.log10(ub)))
+
+    for b in bounds.values():
+        assert b[0] < b[1], "Condition lb < ub violated!"
+        assert b[0] > 0, "Condition lb > 0 violated!"
+
+    return map(logUni, *zip(*bounds.values()))
 
 def scale_unit_to_bounds(seq, bounds):
     """
