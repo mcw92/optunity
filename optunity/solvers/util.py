@@ -44,20 +44,25 @@ def uniform_in_bounds(bounds):
     """
     return map(random.uniform, *zip(*bounds.values()))
 
-def loguniform_in_bounds(bounds):
+def uniform_in_bounds_dyn_PSO(bounds):
+    """Generates a random uniform sample between ``bounds``.
+
+    :param bounds: bounds we must adhere to
+    :type bounds: list [lb ub]
+    """
+    return random.uniform(bounds[0], bounds[1])
+
+def loguniform_in_bounds_dyn_PSO(bounds):
     """Generates a random loguniform sample between ``bounds``.
 
     :param bounds: the bounds we must adhere to
-    :type bounds: dict {"name": [lb,ub], ...}
+    :type bounds: list ``bounds`` as [lb, ub]
     """
-    def logUni(lb, ub):
-        return numpy.power(10, numpy.random.uniform(numpy.log10(lb), numpy.log10(ub)))
 
-    for b in bounds.values():
-        assert b[0] < b[1], "Condition lb < ub violated!"
-        assert b[0] > 0, "Condition lb > 0 violated!"
+    assert bounds[0] < bounds[1], "Condition lb < ub violated!"
+    assert bounds[0] > 0, "Condition lb > 0 violated!"
 
-    return map(logUni, *zip(*bounds.values()))
+    return numpy.power(10, numpy.random.uniform(numpy.log10(bounds[0]), numpy.log10(bounds[1])))
 
 def scale_unit_to_bounds(seq, bounds):
     """
