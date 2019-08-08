@@ -45,7 +45,7 @@ import os
 
 # optunity imports
 from .solver_registry import register_solver
-from .util import Solver, _copydoc, uniform_in_bounds, loguniform_in_bounds
+from .util import Solver, _copydoc, uniform_in_bounds, uniform_in_bounds_dyn_PSO, loguniform_in_bounds_dyn_PSO
 from . import util
 from .Sobol import Sobol
 from . import ParticleSwarm
@@ -171,16 +171,14 @@ class DynamicPSO(ParticleSwarm):
         self._update_param = update_param
         self._eval_obj = eval_obj
 
-    def generate(self):
+    def generate(self, domains):
         """Generate new dynamic particle."""
-        if len(self.bounds) < Sobol.maxdim():                                               # Sobol.maxdim() gives maximum dimensionality supported.
-            sobol_vector, self.sobolseed = Sobol.i4_sobol(len(self.bounds), self.sobolseed) # Sobol.i4_sobol generates new quasi-random Sobol vector with each call.
-            vector = util.scale_unit_to_bounds(sobol_vector, self.bounds.values())          
-            # util.scale_unit_to_bounds(seq, bounds) scales seq elements (unit hypercube) to box constraints in bounds
-        else: 
-            vector = uniform_in_bounds(self.bounds)
-            #vector = loguniform_in_bounds(self.bounds)
-            # util.uniform_in_bounds(bounds) generates random uniform sample between `bounds`.
+        vector = numpy.empty(len(self.bounds))
+        for idx, (key, value) in enumerate(self.bounds.items()):
+            if domains[key] == "loguniform":
+                vector[idx] = loguniform_in_bounds_dyn_PSO(value)
+            else:
+                vector[idx] = uniform_in_bounds_dyn_PSO(value)
 
         # array.array(typecode[,initializer]) creates a new array whose items are restricted by typecode and
         # initialized from optional initializer value. 'd' means C doubles, i.e. Python floats.
@@ -190,6 +188,7 @@ class DynamicPSO(ParticleSwarm):
                                                                  self.smin, self.smax)),
                                       best=None, fitness=0, best_fitness=0,
                                       fargs=None)
+        print("Position", repr(part.position), ", speed", repr(part.speed))
         return part
 
     def updateParticle(self, part, best, phi1, phi2):
@@ -237,7 +236,7 @@ class DynamicPSO(ParticleSwarm):
         else:           # i.e. to minimize, maximize -f.
             fit = -1.0
         
-        pop = [self.generate() for _ in range(self.num_particles)]  # Randomly generate list of num_particle new particles. 
+        pop = [self.generate(domains) for _ in range(self.num_particles)]  # Randomly generate list of num_particle new particles. 
         pop_history = []                                            # Initialize particle history as list.
         fparams_history = []                                        # Initialize obj. func. param. history as list.
         
@@ -248,11 +247,14 @@ class DynamicPSO(ParticleSwarm):
         
         # With this loop structure, parameters can only be updated once for each generation and not after each particle iteration.
         # In exchange, calculations of obj. func. contributions (simulations) can be run in parallel within one generation.
-        print(self.bounds)
+        
+        #print(self.bounds)
+        #print(domains)
+        
         for g in range(self.num_generations):                                       # Loop over generations.
             print("---------------------------------------------------------")
             print("---------------------------------------------------------")
-            print("Generation",repr(int(g)+1))
+            print("Generation", repr(int(g)+1))
             print("---------------------------------------------------------")
             print("---------------------------------------------------------")
             Fargs = [ evaluate(self.particle2dict(part)) for part in pop ]          # Calculate obj. func. contributions for all particles in generation.
