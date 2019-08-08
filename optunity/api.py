@@ -287,7 +287,7 @@ Optimizes func with given solver.
 Returns the solution and a ``namedtuple`` with further details.
 ''' + optimize_results.__doc__ + optimize_stats.__doc__
 
-def optimize_dyn_PSO(func, box, maximize=False, max_evals=0, num_args_obj=1, num_params_obj=0, pmap=map, decoder=None, update_param=None, eval_obj=None):
+def optimize_dyn_PSO(func, box, domains, maximize=False, max_evals=0, num_args_obj=1, num_params_obj=0, pmap=map, decoder=None, update_param=None, eval_obj=None):
     """
     Optimize func with dynamic PSO solver.
     :param func: [callable] objective function
@@ -323,7 +323,7 @@ def optimize_dyn_PSO(func, box, maximize=False, max_evals=0, num_args_obj=1, num
     solver = make_solver(update_param=update_param, eval_obj=eval_obj, **suggestion)  # Create solver.
     time = timeit.default_timer()                   # Define platform-specific default timer.
     try:
-        solution, report = solver.optimize(f, num_args_obj, num_params_obj, maximize, pmap)
+        solution, report = solver.optimize(f, domains, num_args_obj, num_params_obj, maximize, pmap)
     except fun.MaximumEvaluationsException:
         # Early stopping because maximum number of evaluations is reached.
         # Retrieve solution from call log.
