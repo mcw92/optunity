@@ -42,6 +42,7 @@ import random           # generate pseudo-random numbers
 import array            # efficient arrays of numeric values
 import functools        # higher-order functions and operations on callable objects
 import os
+import copy
 
 # optunity imports
 from .solver_registry import register_solver
@@ -136,7 +137,7 @@ class DynamicPSO(ParticleSwarm):
             """Clone this dynamic particle."""
             return DynamicPSO.DynamicParticle(position=self.position[:], speed=self.speed[:],
                                               best=self.best[:], fitness=self.fitness,
-                                              best_fitness=self.best_fitness,fargs=self.fargs[:])
+                                              best_fitness=self.best_fitness, fargs=self.fargs[:])
 
     def __init__(self, num_particles, num_generations, max_speed=None, phi1=1.5, phi2=2.0, update_param=None, eval_obj=None, **kwargs):
         """ Initialize a dynamic PSO solver.
@@ -171,14 +172,48 @@ class DynamicPSO(ParticleSwarm):
         self._update_param = update_param
         self._eval_obj = eval_obj
 
+    def split_log_uni(self, domains):
+        uni = {}
+        log = {}
+        for key, value in self.bounds.items():
+            if domains[key] == "uniform":
+                uni[key] = value
+            elif domains[key] == "loguniform":
+                log[key] = value
+        return uni, log
+
     def generate(self, domains):
         """Generate new dynamic particle."""
-        vector = numpy.empty(len(self.bounds))
-        for idx, (key, value) in enumerate(self.bounds.items()):
-            if domains[key] == "loguniform":
-                vector[idx] = loguniform_in_bounds_dyn_PSO(value)
-            else:
-                vector[idx] = uniform_in_bounds_dyn_PSO(value)
+        uni, log = self.split_log_uni(domains)
+        # uniformly distributed hyperparameters
+        if len(uni) < Sobol.maxdim():
+            sobol_vector, self.sobolseed = Sobol.i4_sobol(len(uni), self.sobolseed)
+            vector_uni = util.scale_unit_to_bounds(sobol_vector, uni.values())
+        else:
+            vector_uni = uniform_in_bounds(uni)
+        # log-uniformly distributed hyperparameters
+        vector_log = [] 
+        for idx, value in enumerate(log.values()):
+            vector_log.append(loguniform_in_bounds_dyn_PSO(value))
+
+        sorted_bounds = {**uni, **log}
+        vector_temp = [vector_uni, vector_log]
+        flat_vector_temp = [v for l in vector_temp for v in l]
+        vector_dict = {}
+        for idx, key in enumerate(sorted_bounds.keys()):
+            vector_dict[key] = flat_vector_temp[idx]
+        vector = []
+        for idx, key in enumerate(self.bounds.keys()):
+                vector.append(vector_dict[key])
+
+        #vector = numpy.empty(len(self.bounds))
+#       for idx, (key, value) in enumerate(self.bounds.items()): 
+#            if domains[key] == "loguniform":
+#                vector[idx] = loguniform_in_bounds_dyn_PSO(value)
+#            else:
+#               sobol_vector, self.sobolseed = Sobol.i4_sobol(1, self.sobolseed) 
+#               vector[idx] = scale_unit_to_bounds(sobol_vector, [value])
+#               vector[idx] = uniform_in_bounds_dyn_PSO(value)
 
         # array.array(typecode[,initializer]) creates a new array whose items are restricted by typecode and
         # initialized from optional initializer value. 'd' means C doubles, i.e. Python floats.
@@ -186,9 +221,9 @@ class DynamicPSO(ParticleSwarm):
         part = DynamicPSO.DynamicParticle(position=array.array('d', vector),                # random.uniform(a, b) returns a random floating point number N such that
                                       speed=array.array('d', map(random.uniform,            # a <= N <= b for a <= b and vice versa.
                                                                  self.smin, self.smax)),
-                                      best=None, fitness=0, best_fitness=0,
+                                      best=None, fitness=None, best_fitness=None,
                                       fargs=None)
-        print("Position", repr(part.position), ", speed", repr(part.speed))
+        #print("Position", repr(part.position), ", speed", repr(part.speed))
         return part
 
     def updateParticle(self, part, best, phi1, phi2):
@@ -235,7 +270,8 @@ class DynamicPSO(ParticleSwarm):
             fit = 1.0   # `optimize` function is a maximizer,
         else:           # i.e. to minimize, maximize -f.
             fit = -1.0
-        
+       
+        print("Initialize first generation of particles.")
         pop = [self.generate(domains) for _ in range(self.num_particles)]  # Randomly generate list of num_particle new particles. 
         pop_history = []                                            # Initialize particle history as list.
         fparams_history = []                                        # Initialize obj. func. param. history as list.
@@ -248,46 +284,43 @@ class DynamicPSO(ParticleSwarm):
         # With this loop structure, parameters can only be updated once for each generation and not after each particle iteration.
         # In exchange, calculations of obj. func. contributions (simulations) can be run in parallel within one generation.
         
-        #print(self.bounds)
-        #print(domains)
-        
+        print("Start dynamic PSO optimization loop...")
         for g in range(self.num_generations):                                       # Loop over generations.
-            print("---------------------------------------------------------")
-            print("---------------------------------------------------------")
-            print("Generation", repr(int(g)+1))
-            print("---------------------------------------------------------")
-            print("---------------------------------------------------------")
-            Fargs = [ evaluate(self.particle2dict(part)) for part in pop ]          # Calculate obj. func. contributions for all particles in generation.
-            for idx, (part, fargs) in enumerate(zip(pop, Fargs)):                   # Set objective function arguments as particle attributes.
-                part.fargs = fargs 
-            pop_history.append(pop)                                                 # Append current particle generation to history.
+            print("Evaluate objective function for current generation...")
+            Fargs = pmap(evaluate, list(map(self.particle2dict, pop)))              # Evaluate blackbox function for current generation.
+            for part, fargs in zip(pop, Fargs):                                     # Set obj. func. arguments as particle attributes.
+                part.fargs = fargs
+            pop_temp = copy.deepcopy(pop)
+            pop_history.append(pop_temp)                                                 # Append current particle generation to history.
             fparams = updateParam(pop_history, num_params_obj, self._update_param)  # Update obj. func. param.s.
             fparams_history.append(fparams)                                         # Append current obj. func. parameter set to history.
-            for idg, pops in enumerate(pop_history):                                                # Update fitnesses using most recent obj. param.s.
-                assert len(pops) == self.num_particles, "Number of particles in generation does not match `num_particles`."
-                print("--------------------\n", "Generation", str(idg+1), "\n--------------------")
-                with open("../log.log", "a") as log:
-                    log.writelines("--------------------\n" + "Generation " + str(idg+1) + "\n--------------------\n")
+            print("Loop over particle history:")
+            for idg, pops in enumerate(pop_history[::-1]):                                # Update fitnesses using most recent obj. param.s.
                 for idx, part in enumerate(pops):
                     fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj))
-                    line = "Particle " + repr(int(idx)+1) +" at " + repr(part.position) + " with obj. func. args " + repr(part.fargs) + ", fitness " + repr(fitness)
+                    #part.fitness = fitness
+                    line = "Position" + repr(part.position) + " with args " + repr(part.fargs) + " and fitness " + repr(fitness)
                     print(line)
-                    with open("../log.log", "a") as log:
-                        log.writelines(line + "\n")
-                    if not part.best or pop[idx].best_fitness < fitness:
+                    if part.fitness is None:
+                        part.fitness = fitness
+                    #    pop[idx].fitness = fitness
+                    if part.best is None:
+                        part.best = part.position
+                        part.best_fitness = fitness 
+                        #pop[idx].best = part.position
+                        #pop[idx].best_fitness = fitness
+                    if not pop[idx].best or pop[idx].best_fitness < fitness:
                         #print("Personal best is updated in particle history.")
                         pop[idx].best = part.position
                         pop[idx].best_fitness = fitness
-                    if not best or best.best_fitness < fitness:
-                        #print("Global best is updated.")
+                    if best is None or best.best_fitness < fitness:
                         best = part.clone()
-                        #print(self.particle2dict(best))
+                        #print("Global best is updated:", self.particle2dict(best))
+            print("----------")
             for part in pop:
+                #print(part.best, part.position)
                 self.updateParticle(part, best, self.phi1, self.phi2)
-            print("Current obj. func. parameters: ", repr(numpy.around(fparams, 2)) + "\n")
+            #print("Current obj. func. parameters: ", repr(numpy.around(fparams, 2)))
             print("Best position so far:", best.position, "with fitness", best.best_fitness)
-            with open("../log.log", "a") as log:
-                log.writelines("Current obj. func. parameters: " + repr(numpy.around(fparams, 2)) + "\n")
-                log.writelines("Best position so far: " + repr(best.position) + " with fitness " + repr(best.best_fitness) + "\n--------------------\n")
         #print(fparams_history)
         return dict([(k, v) for k, v in zip(self.bounds.keys(), best.position)]), None # Return best position for each hyperparameter.
