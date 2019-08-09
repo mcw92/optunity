@@ -224,7 +224,7 @@ class ParticleSwarm(Solver):
 
     def generate(self):
         """Generate a new Particle."""
-        if len(self.bounds) < Sobol.maxdim():
+        if len(self.bounds) < Sobol.maxdim(): # Optunity supports Sobol sequences in up to 40 dimensions (i.e. 40 hyperparameters).
             sobol_vector, self.sobolseed = Sobol.i4_sobol(len(self.bounds), self.sobolseed)
             vector = util.scale_unit_to_bounds(sobol_vector, self.bounds.values())
         else: vector = uniform_in_bounds(self.bounds)
