@@ -316,6 +316,7 @@ class DynamicPSO(ParticleSwarm):
                 print("----")
             
             # Determine pbest/gbest.
+            best = None
             print("Determine pbest/gbest...")
             for idg, pops in enumerate(pop_history[::-1]):
                 print("----")
