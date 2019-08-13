@@ -132,7 +132,18 @@ class DynamicPSO(ParticleSwarm):
             """
             super().__init__(position, speed, best, fitness, best_fitness)
             self.fargs = fargs
-        
+       
+        def __str__(self):
+            string = 'Particle{position=' + str(self.position)
+            string += ', fargs=' +repr(self.fargs)
+            string += ', speed=' + str(self.speed)
+            string += ', best=' + str(self.best)
+            string += ', fitness=' + str(self.fitness)
+            string += ', best_fitness=' + str(self.best_fitness)
+            string += '}'
+            return string
+
+
         def clone(self):
             """Clone this dynamic particle."""
             return DynamicPSO.DynamicParticle(position=self.position[:], speed=self.speed[:],
@@ -206,24 +217,12 @@ class DynamicPSO(ParticleSwarm):
         for idx, key in enumerate(self.bounds.keys()):
                 vector.append(vector_dict[key])
 
-        #vector = numpy.empty(len(self.bounds))
-#       for idx, (key, value) in enumerate(self.bounds.items()): 
-#            if domains[key] == "loguniform":
-#                vector[idx] = loguniform_in_bounds_dyn_PSO(value)
-#            else:
-#               sobol_vector, self.sobolseed = Sobol.i4_sobol(1, self.sobolseed) 
-#               vector[idx] = scale_unit_to_bounds(sobol_vector, [value])
-#               vector[idx] = uniform_in_bounds_dyn_PSO(value)
-
-        # array.array(typecode[,initializer]) creates a new array whose items are restricted by typecode and
-        # initialized from optional initializer value. 'd' means C doubles, i.e. Python floats.
-        
         part = DynamicPSO.DynamicParticle(position=array.array('d', vector),                # random.uniform(a, b) returns a random floating point number N such that
                                       speed=array.array('d', map(random.uniform,            # a <= N <= b for a <= b and vice versa.
                                                                  self.smin, self.smax)),
                                       best=None, fitness=None, best_fitness=None,
                                       fargs=None)
-        #print("Position", repr(part.position), ", speed", repr(part.speed))
+        print("Position", repr(part.position), ", speed", repr(part.speed))
         return part
 
     def updateParticle(self, part, best, phi1, phi2):
@@ -242,22 +241,11 @@ class DynamicPSO(ParticleSwarm):
         #print("Old position:", part.position[:])
         #print("Speed:", part.speed[:])
         part.position[:] = array.array('d', map(op.add, part.position, part.speed)) # Add velocity to position to propagate particle.
-        #part.fitness = None
         #print("New position:", part.position[:])
-    # updateParticle is inherited from ParticleSwarm class without changes.
-    # => Propagate particle, i.e. update its speed and position according to current personal and global best.
-    # particle2dict is inherited from ParticleSwarm class without changes.
-    # => Convert particle to dict format {"hyperparameter": particle position}
     
     @_copydoc(Solver.optimize)
     def optimize(self, f, domains, num_args_obj, num_params_obj, maximize=False, pmap=map):  # f is objective function to be optimized.
         """Actual solver implementing dynamic particle swarm optimization.""" 
-    # map(function,iterable,...): Return iterator that applies function to every item
-    # of iterable, yielding the results. If additional iterable arguments are passed,
-    # function must take that many arguments and is applied to the items from all iterables
-    # in parallel. With multiple iterables, the interator stops when the shortest iterable
-    # is exhausted.
-       
         # functools.wraps(wrapped) is a convenience function for invoking update_wrapper() as function decorator when
         # defining a wrapper function. functools.update_wrapper(wrapper, wrapped) updates a wrapper function to look 
         # like the wrapped function.
@@ -290,9 +278,7 @@ class DynamicPSO(ParticleSwarm):
         for g in range(self.num_generations):                                       # Loop over generations.
             print("--------")
             print("Evaluate obj. func. for generation", str(g+1))
-            Fargs = pmap(evaluate, list(map(self.particle2dict, pop)))              
-            
-            # Evaluate blackbox function for current generation.
+            Fargs = list(pmap(evaluate, list(map(self.particle2dict, pop))))              
             for part, fargs in zip(pop, Fargs): part.fargs = fargs                  # Set obj. func. args as particle attributes.
             pop_temp = copy.deepcopy(pop)
             pop_history.append(pop_temp)                                            # Append current particle generation to history.
@@ -300,18 +286,18 @@ class DynamicPSO(ParticleSwarm):
             fparams_history.append(fparams)                                         # Append current obj. func. param. set to history.
             
             # Recalculate all fitnesses in `pop_history` and `pop`.
-            print("------")
-            print("Re-calculate all fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...")
-            print("----")
+            print("------\nRe-calculate all fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...\n----")
             for idg, pops in enumerate(pop_history[::-1]):
                 print("G" + str(g-idg+1) + "\n----")
+                with open("/home/marie/log.log", "a+") as log: log.writelines("----\nG" + str(g-idg+1) + "\n----\n")
                 for idp, part in enumerate(pops):
                     part.fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj)) # Calculate fitnesses using most recent obj. func. params.
                     if idg == 0:
                         pop[idp].fitness = part.fitness
                         pop[idp].best_fitness = None
                         pop[idp].best = None
-                    line = "P" + str(idp+1) + " at " + repr(numpy.around(part.position, 2)) + " with args " + repr(numpy.around(part.fargs, 2)) + " and fitness " + repr(numpy.round(part.fitness, 2)) + " (pop: " + repr(numpy.round(pop[idp].fitness, 2)) +")"
+                    line = "P"+str(idp+1)+" at "+str(part.position)+" with args "+str(part.fargs)+" and fitness "+str(part.fitness)+" (pop: "+str(pop[idp].fitness)+")\n"
+                    with open("/home/marie/log.log", "a+") as log: log.writelines(line)
                     print(line)
                 print("----")
             
@@ -319,16 +305,14 @@ class DynamicPSO(ParticleSwarm):
             best = None
             print("Determine pbest/gbest...")
             for idg, pops in enumerate(pop_history[::-1]):
-                print("----")
-                print("G" + str(g-idg+1))
-                print("----")
+                print("----\nG" + str(g-idg+1) + "\n----")
                 for idp, part in enumerate(pops):
                     print("P" +  str(idp+1))
                     print("pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
-                    if pop[idp].best is None or pop[idp].best_fitness < part.fitness:   # This should only be the case for the very first generation run.
+                    if pop[idp].best is None or pop[idp].best_fitness < part.fitness:
                         pop[idp].best = part.position
                         pop[idp].best_fitness = part.fitness
-                        print("Update pop pbest:", numpy.round(pop[idp].best_fitness, 2), "at", numpy.around(pop[idp].best, 2))
+                        print("Update pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
                     if best is None or best.best_fitness < part.fitness:
                         part.best = part.position
                         part.best_fitness = part.fitness
@@ -336,9 +320,10 @@ class DynamicPSO(ParticleSwarm):
                         print("Update gbest:", self.particle2dict(best))
                     print("----")
             print("----------")
+            with open("/home/marie/log.log", "a") as log: log.writelines("----\n")
             for part in pop:
                 self.updateParticle(part, best, self.phi1, self.phi2)
-            print("Best position so far:", numpy.around(best.position, 2), "with args", numpy.around(best.fargs, 2), "and fitness", numpy.around(best.best_fitness, 2))
+            print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
             print("----------")
         print(fparams_history)
         return dict([(k, v) for k, v in zip(self.bounds.keys(), best.position)]), None # Return best position for each hyperparameter.
