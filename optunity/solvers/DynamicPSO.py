@@ -43,6 +43,7 @@ import array            # efficient arrays of numeric values
 import functools        # higher-order functions and operations on callable objects
 import os
 import copy
+import pathlib
 
 # optunity imports
 from .solver_registry import register_solver
@@ -259,7 +260,9 @@ class DynamicPSO(ParticleSwarm):
             fit = -1.0  # `optimize` function is a minimizer,
         else:           # i.e. to maximize, minimize -f.
             fit = 1.0
-        
+       
+        home = str(pathlib.Path.home())
+
         print("----------")
         print("Initialize first generation...")
         pop = [self.generate(domains) for _ in range(self.num_particles)]  # Randomly generate list of num_particle new particles. 
@@ -273,6 +276,9 @@ class DynamicPSO(ParticleSwarm):
         
         # With this loop structure, parameters can only be updated once for each generation and not after each particle iteration.
         # In exchange, calculations of obj. func. contributions (simulations) can be run in parallel within one generation.
+        
+        if os.path.isfile(home+"/log.log"):
+            os.rename(home+"/log.log", home+"/#log.log#")
         
         print("Start dynamic PSO loop...")
         for g in range(self.num_generations):                                       # Loop over generations.
@@ -289,16 +295,16 @@ class DynamicPSO(ParticleSwarm):
             print("------\nRe-calculate all fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...\n----")
             for idg, pops in enumerate(pop_history[::-1]):
                 print("G" + str(g-idg+1) + "\n----")
-                with open("/home/marie/log.log", "a+") as log: log.writelines("----\nG" + str(g-idg+1) + "\n----\n")
+                with open(home+"/log.log", "a+") as log: log.writelines("#\n#G" + str(g-idg+1) + "\n#\n")
                 for idp, part in enumerate(pops):
                     part.fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj)) # Calculate fitnesses using most recent obj. func. params.
                     if idg == 0:
                         pop[idp].fitness = part.fitness
                         pop[idp].best_fitness = None
                         pop[idp].best = None
-                    line = "P"+str(idp+1)+" at "+str(part.position)+" with args "+str(part.fargs)+" and fitness "+str(part.fitness)+" (pop: "+str(pop[idp].fitness)+")"
-                    with open("/home/marie/log.log", "a+") as log: log.writelines(line+"\n")
-                    print(line)
+                    line = "{:>3}".format(str(idp+1))+" ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"{:>15.4e}".format(pop[idp].fitness)+"\n"
+                    with open(home+"/log.log", "a+") as log: log.writelines(line)
+                    print("P"+str(idp+1)+" at "+str(part.position)+" with args "+str(part.fargs)+" and fitness "+str(part.fitness)+" (pop: "+str(pop[idp].fitness)+")")
                 print("----")
             
             # Determine pbest/gbest.
@@ -320,10 +326,14 @@ class DynamicPSO(ParticleSwarm):
                         print("Update gbest:", self.particle2dict(best))
                     print("----")
             print("----------")
-            with open("/home/marie/log.log", "a") as log: log.writelines("----\n")
+            with open(home+"/log.log", "a") as log: log.writelines("#----\n")
             for part in pop:
                 self.updateParticle(part, best, self.phi1, self.phi2)
             print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
             print("----------")
+        if os.path.isfile(home+"/params.log"):
+            os.rename(home+"/params.log", home+"/#params.log#")
+        numpy.savetxt(home+"/params.log", fparams_history)
         print(fparams_history)
+        with open(home+"/log.log", "a+") as log: log.writelines("#Best parameter set:"+" ".join(map("{:>15.4e}".format, best.position))+" with fitness"+"{:>15.4e}".format(best.best_fitness))
         return dict([(k, v) for k, v in zip(self.bounds.keys(), best.position)]), None # Return best position for each hyperparameter.
