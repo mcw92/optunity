@@ -256,9 +256,9 @@ class DynamicPSO(ParticleSwarm):
             return f(**d)
         
         if maximize:    # Maximization or minimization problem?
-            fit = 1.0   # `optimize` function is a maximizer,
-        else:           # i.e. to minimize, maximize -f.
-            fit = -1.0
+            fit = -1.0  # `optimize` function is a minimizer,
+        else:           # i.e. to maximize, minimize -f.
+            fit = 1.0
         
         print("----------")
         print("Initialize first generation...")
@@ -296,8 +296,8 @@ class DynamicPSO(ParticleSwarm):
                         pop[idp].fitness = part.fitness
                         pop[idp].best_fitness = None
                         pop[idp].best = None
-                    line = "P"+str(idp+1)+" at "+str(part.position)+" with args "+str(part.fargs)+" and fitness "+str(part.fitness)+" (pop: "+str(pop[idp].fitness)+")\n"
-                    with open("/home/marie/log.log", "a+") as log: log.writelines(line)
+                    line = "P"+str(idp+1)+" at "+str(part.position)+" with args "+str(part.fargs)+" and fitness "+str(part.fitness)+" (pop: "+str(pop[idp].fitness)+")"
+                    with open("/home/marie/log.log", "a+") as log: log.writelines(line+"\n")
                     print(line)
                 print("----")
             
@@ -309,11 +309,11 @@ class DynamicPSO(ParticleSwarm):
                 for idp, part in enumerate(pops):
                     print("P" +  str(idp+1))
                     print("pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
-                    if pop[idp].best is None or pop[idp].best_fitness < part.fitness:
+                    if pop[idp].best is None or part.fitness < pop[idp].best_fitness:
                         pop[idp].best = part.position
                         pop[idp].best_fitness = part.fitness
                         print("Update pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
-                    if best is None or best.best_fitness < part.fitness:
+                    if best is None or part.fitness < best.best_fitness:
                         part.best = part.position
                         part.best_fitness = part.fitness
                         best = part.clone()
