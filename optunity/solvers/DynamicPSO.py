@@ -294,7 +294,7 @@ class DynamicPSO(ParticleSwarm):
             # Recalculate all fitnesses in `pop_history` and `pop`.
             print("------\nRe-calculate all fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...\n----")
             for idg, pops in enumerate(pop_history[::-1]):
-                print("G" + str(g-idg+1) + "\n----")
+                #print("G" + str(g-idg+1) + "\n----")
                 with open(home+"/log.log", "a+") as log: log.writelines("#\n#G" + str(g-idg+1) + "\n#\n")
                 for idp, part in enumerate(pops):
                     part.fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj)) # Calculate fitnesses using most recent obj. func. params.
@@ -304,27 +304,27 @@ class DynamicPSO(ParticleSwarm):
                         pop[idp].best = None
                     line = "{:>3}".format(str(idp+1))+" ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"{:>15.4e}".format(pop[idp].fitness)+"\n"
                     with open(home+"/log.log", "a+") as log: log.writelines(line)
-                    print("P"+str(idp+1)+" at "+str(part.position)+" with args "+str(part.fargs)+" and fitness "+str(part.fitness)+" (pop: "+str(pop[idp].fitness)+")")
-                print("----")
+                    #print("P"+str(idp+1)+" at "+str(part.position)+" with args "+str(part.fargs)+" and fitness "+str(part.fitness)+" (pop: "+str(pop[idp].fitness)+")")
+                #print("----")
             
             # Determine pbest/gbest.
             best = None
             print("Determine pbest/gbest...")
             for idg, pops in enumerate(pop_history[::-1]):
-                print("----\nG" + str(g-idg+1) + "\n----")
+                #print("----\nG" + str(g-idg+1) + "\n----")
                 for idp, part in enumerate(pops):
-                    print("P" +  str(idp+1))
-                    print("pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
+                    #print("P" +  str(idp+1))
+                    #print("pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
                     if pop[idp].best is None or part.fitness < pop[idp].best_fitness:
                         pop[idp].best = part.position
                         pop[idp].best_fitness = part.fitness
-                        print("Update pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
+                        #print("Update pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
                     if best is None or part.fitness < best.best_fitness:
                         part.best = part.position
                         part.best_fitness = part.fitness
                         best = part.clone()
-                        print("Update gbest:", self.particle2dict(best))
-                    print("----")
+                        #print("Update gbest:", self.particle2dict(best))
+                    #print("----")
             print("----------")
             with open(home+"/log.log", "a") as log: log.writelines("#----\n")
             for part in pop:
