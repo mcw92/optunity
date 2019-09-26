@@ -54,6 +54,7 @@ e.g. :mod:`optunity.solvers`.
 import timeit
 import sys
 import operator
+import mpi4py
 
 # optunity imports
 from . import functions as fun
@@ -287,13 +288,19 @@ Optimizes func with given solver.
 Returns the solution and a ``namedtuple`` with further details.
 ''' + optimize_results.__doc__ + optimize_stats.__doc__
 
-def optimize_dyn_PSO(func, box, domains, maximize=False, max_evals=0, num_args_obj=1, num_params_obj=0, pmap=map, decoder=None, update_param=None, eval_obj=None):
+def optimize_dyn_PSO(func, box, domains, maximize=False, num_particles=0, num_generations=0, num_particles_global=0, num_args_obj=1, num_params_obj=0, pmap=map, decoder=None, update_param=None, eval_obj=None):
     """
     Optimize func with dynamic PSO solver.
-    :param func: [callable] objective function
+    :param func: [callable] blackbox function
+    :param box: [dict] box constraints for hyperparameters to be optimized
     :param maximize: [bool] maximize or minimize?
-    :param max_evals: [int] maximum number of permitted function evaluations
+    :param num_particles: [int] number of local particles
+    :param num_generations: [int] number of generations, i.e. iterations per particle
+    :param num_particles_global: [int] global number of particles
+    :param num_args_obj: [int] number of arguments in obj. func.
+    :param num_params_obj: [int] number of parameters in obj. func.
     :param pmap: [function] map() function to use, to vectorize use :func:`optunity.parallel.pmap`
+    :param decoder:
     :param update_param: [function] function specifying how to set parameters of objective function
     :param eval_obj: [function] functional form of objective function (how to combine parameters and terms to obtain scalar fitness)
 
@@ -301,11 +308,11 @@ def optimize_dyn_PSO(func, box, domains, maximize=False, max_evals=0, num_args_o
     Refer to docs of optunity.maximize_results and optunity.maximize_stats.
     """
 
-    if max_evals > 0:
+    if num_generations > 0:
         # Decorate f to enforce maximum number of function evaluations. Throws MaximumEvaluationsException during
         # evaluations after the maximum is reached. Adds a field `f.num_evals` tracking the number of evaluations
         # performed.
-        f = fun.max_evals(max_evals)(func)
+        f = fun.max_evals(num_generations)(func)
     else:
         f = func
     
@@ -317,10 +324,10 @@ def optimize_dyn_PSO(func, box, domains, maximize=False, max_evals=0, num_args_o
     
     f = fun.logged(f)
     num_evals = -len(f.call_log)
-    suggestion = suggest_solver(num_evals=max_evals, solver_name="dynamic particle swarm", **box)
+    solver = make_solver(solver_name="dynamic particle swarm", num_particles=num_particles, num_generations=num_generations,\
+                         update_param=update_param, eval_obj=eval_obj, **box)  # Create solver.
     print("Solver setup used:")
-    print(suggestion)
-    solver = make_solver(update_param=update_param, eval_obj=eval_obj, **suggestion)  # Create solver.
+    solver.__dict__
     time = timeit.default_timer()                   # Define platform-specific default timer.
     try:
         solution, report = solver.optimize(f, domains, num_args_obj, num_params_obj, maximize, pmap)
