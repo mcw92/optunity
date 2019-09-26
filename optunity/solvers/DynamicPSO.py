@@ -264,15 +264,12 @@ class DynamicPSO(ParticleSwarm):
         home = str(pathlib.Path.home())
 
         print("----------")
-        print("Initialize first generation...")
-        pop = [self.generate(domains) for _ in range(self.num_particles)]  # Randomly generate list of num_particle new particles. 
-        pop_history = []                                            # Initialize particle history as list.
-        fparams_history = []                                        # Initialize obj. func. param. history as list.
+        print("Initialize particle for first generation...")
+        part = self.generate(domains)   # Randomly generate new particle.
+        part_history = []                    # Initialize particle history list. THIS MUST BE SHARED AMONG ALL PARTICLES!!!
+        fparams_history = []                # Initialize obj. func. param. history list.
         
-        # "_" is common use in python, when the iterator is not needed. E.g., running a list using range(), it is the times range 
-        # shows up what matters, not its value. "_" is a normal variable conventionally used to show that its value is irrelevant.
-        
-        best = None                                                 # Initialize particle storing global best.
+        best = None                         # Initialize particle storing global best. THIS MUST BE SHARED AMONG ALL PARTICLES!!!
         
         # With this loop structure, parameters can only be updated once for each generation and not after each particle iteration.
         # In exchange, calculations of obj. func. contributions (simulations) can be run in parallel within one generation.
@@ -280,19 +277,22 @@ class DynamicPSO(ParticleSwarm):
         if os.path.isfile(home+"/log.log"):
             os.rename(home+"/log.log", home+"/#log.log#")
         
-        print("Start dynamic PSO loop...")
+        print("Start dynamic PSO...")
         for g in range(self.num_generations):                                       # Loop over generations.
-            print("--------")
-            print("Evaluate obj. func. for generation", str(g+1))
-            Fargs = list(pmap(evaluate, list(map(self.particle2dict, pop))))              
-            for part, fargs in zip(pop, Fargs): part.fargs = fargs                  # Set obj. func. args as particle attributes.
-            pop_temp = copy.deepcopy(pop)
-            pop_history.append(pop_temp)                                            # Append current particle generation to history.
-            fparams = updateParam(pop_history, num_params_obj, self._update_param)  # Update obj. func. param.s.
+            print("Evaluate blackbox for generation", str(g+1))
+            # !!! HERE: Blackbox is evaluated, i.e. actual sim. is run and workers start to evaluate REF15 score in parallel.
+            # !!! This returns obj. func. args for ONE particle.
+            # !!! To determine obj. func. params and propagate particle for next generation, ALL PSO runs have to know obj. func.
+            # !!! args of ALL THE OTHERS to make ONE GLOBAL PARTICLE HISTORY!
+            part.fargs = evaluate(self.particle2dict(part))                         # Set obj. func. args as particle attributes.
+            part_history.append(part)                                                # Append current particle generation to history.
+            # !!! To update obj. func. params, the global history of ALL PARTICLES needs to be known.
+            # !!! Here, all local pop_history lists must be gathered to obtain one global particle history
+            fparams = updateParam(part_history, num_params_obj, self._update_param)  # Update obj. func. param.s.
             fparams_history.append(fparams)                                         # Append current obj. func. param. set to history.
             
             # Recalculate all fitnesses in `pop_history` and `pop`.
-            print("------\nRe-calculate all fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...\n----")
+            print("------\nRe-calculate fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...\n----")
             for idg, pops in enumerate(pop_history[::-1]):
                 #print("G" + str(g-idg+1) + "\n----")
                 with open(home+"/log.log", "a+") as log: log.writelines("#\n#G" + str(g-idg+1) + "\n#\n")
@@ -304,8 +304,6 @@ class DynamicPSO(ParticleSwarm):
                         pop[idp].best = None
                     line = "{:>3}".format(str(idp+1))+" ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"{:>15.4e}".format(pop[idp].fitness)+"\n"
                     with open(home+"/log.log", "a+") as log: log.writelines(line)
-                    #print("P"+str(idp+1)+" at "+str(part.position)+" with args "+str(part.fargs)+" and fitness "+str(part.fitness)+" (pop: "+str(pop[idp].fitness)+")")
-                #print("----")
             
             # Determine pbest/gbest.
             best = None
