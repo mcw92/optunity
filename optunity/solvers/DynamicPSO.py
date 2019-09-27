@@ -44,6 +44,7 @@ import functools        # higher-order functions and operations on callable obje
 import os
 import copy
 import pathlib
+from mpi4py import MPI
 
 # optunity imports
 from .solver_registry import register_solver
@@ -53,30 +54,30 @@ from .Sobol import Sobol
 from . import ParticleSwarm
 
 def updateParam(pop_history, num_params=0, func=None, **kwargs):
-    """Update/determine objective function parameters according to user-specified function.
-    If function is not specified, all parameters are set to 1.
+    """Update/determine obj. func. params according to user-specified function.
+    If function is not specified, all params are set to 1.
     :param pop_history: [list] list of dynamic particle lists from all previous generations
-    :param num_params:  [int] number of objective function parameters
-    :param func:        [function] how to update objective function parameters
-    :returns:           [list] list of objective function parameters
+    :param num_params:  [int] number of obj. func. params
+    :param func:        [function] how to update obj. func. params
+    :returns:           [list] list of obj. func. params
     """
     if func is not None:
         fparams = func(pop_history, num_params, **kwargs)
         #print("User-specified updateParam() evaluates to", fparams,".")
         return fparams 
     else:
-        #print("Default objective function parameters are used.")
+        #print("Default obj. func. params are used.")
         return numpy.ones(num_params)
 
 def evaluateObjFunc(args, params=None, func=None, **kwargs):
-    """Calculate scalar fitness according to objective function, given its arguments and parameters.
+    """Calculate scalar fitness according to obj. func., given its args and params.
     If `func` is None, the  scalar product `args[i]*params[i]` is returned.
 
-    :param args:   [vector] (unweighted) arguments of/contributions to objective function
-    :param params: [vector] parameters of objective function
-    :param func:   [function] function specifying functional form of objective function, i.e.
-                   how to combine arguments and parameters to obtain scalar fitness
-    :returns:      [float] objective function value (scalar fitness)
+    :param args:   [vector] (unweighted) args of/contributions to obj. func.
+    :param params: [vector] params of obj. func.
+    :param func:   [function] function specifying functional form of obj. func., i.e.
+                   how to combine args and params to obtain scalar fitness
+    :returns:      [float] obj. func. value (scalar fitness)
     """
 
     if func is not None and params is not None:
@@ -85,7 +86,7 @@ def evaluateObjFunc(args, params=None, func=None, **kwargs):
     else:
         if params is not None:
             if op.ne(len(args), len(params)):
-                raise ValueError("If `combine_obj` is not specified, arguments and parameters vectors need to have same length.")
+                raise ValueError("If `combine_obj` is not specified, args and params vectors need to have same length.")
             return numpy.dot(params, args)
         else:
             return sum(args)
@@ -124,12 +125,12 @@ class DynamicPSO(ParticleSwarm):
         """Dynamic particle class."""
         def __init__(self, position, speed, best, fitness, best_fitness, fargs):
             """Construct a dynamic particle.
-            :param position: particle position corresponding to hyperparameter combination to be tested
-            :param speed: particle speed giving its direction of movement in hyperparameter space
+            :param position: particle position (hyperparameter combination to be tested)
+            :param speed: particle speed (direction of movement in hyperparameter space)
             :param best: best particle position so far (considering current and all previous generations)
             :param fitness: particle fitness (according to its original generation)
             :param best_fitness: (personal) best particle fitness so far (considering current and all previous generations)
-            :param fargs: vector of unweighted objective function terms for this particle
+            :param fargs: vector of unweighted obj. func. terms for this particle
             """
             super().__init__(position, speed, best, fitness, best_fitness)
             self.fargs = fargs
@@ -143,7 +144,6 @@ class DynamicPSO(ParticleSwarm):
             string += ', best_fitness=' + str(self.best_fitness)
             string += '}'
             return string
-
 
         def clone(self):
             """Clone this dynamic particle."""
@@ -245,15 +245,15 @@ class DynamicPSO(ParticleSwarm):
         #print("New position:", part.position[:])
     
     @_copydoc(Solver.optimize)
-    def optimize(self, f, domains, num_args_obj, num_params_obj, maximize=False, pmap=map):  # f is objective function to be optimized.
+    def optimize(self, f, domains, num_args_obj, num_params_obj, maximize=False, pmap=map, comm_inter=MPI.COMM_WORLD, comm_intra=MPI.COMM_WORLD):  # f is obj. func. to be optimized.
         """Actual solver implementing dynamic particle swarm optimization.""" 
-        # functools.wraps(wrapped) is a convenience function for invoking update_wrapper() as function decorator when
+        # functools.wraps(wrapped): convenience function for invoking update_wrapper() as function decorator when
         # defining a wrapper function. functools.update_wrapper(wrapper, wrapped) updates a wrapper function to look 
         # like the wrapped function.
 
         @functools.wraps(f)                                     # wrapper function evaluating f
         def evaluate(d):
-            """Wrapper function evaluating objective function f accepting a dict {"hyperparameter": particle position}."""
+            """Wrapper function evaluating obj. func. f accepting a dict {"hyperparameter": particle position}."""
             return f(**d)
         
         if maximize:    # Maximization or minimization problem?
