@@ -265,11 +265,11 @@ class DynamicPSO(ParticleSwarm):
 
         print("----------")
         print("Initialize particle for first generation...")
-        part = self.generate(domains)   # Randomly generate new particle.
-        part_history = []                    # Initialize particle history list. THIS MUST BE SHARED AMONG ALL PARTICLES!!!
-        fparams_history = []                # Initialize obj. func. param. history list.
+        PART = self.generate(domains)   # Randomly generate new particle.
+        part_history = []               # Initialize particle history list. THIS MUST BE SHARED AMONG ALL PARTICLES!!!
+        fparams_history = []            # Initialize obj. func. param. history list.
         
-        best = None                         # Initialize particle storing global best. THIS MUST BE SHARED AMONG ALL PARTICLES!!!
+        best = None                     # Initialize particle storing global best. THIS MUST BE SHARED AMONG ALL PARTICLES!!!
         
         # With this loop structure, parameters can only be updated once for each generation and not after each particle iteration.
         # In exchange, calculations of obj. func. contributions (simulations) can be run in parallel within one generation.
@@ -280,55 +280,66 @@ class DynamicPSO(ParticleSwarm):
         print("Start dynamic PSO...")
         for g in range(self.num_generations):                                       # Loop over generations.
             print("Evaluate blackbox for generation", str(g+1))
-            # !!! HERE: Blackbox is evaluated, i.e. actual sim. is run and workers start to evaluate REF15 score in parallel.
+            # !!! Evaluate blackbox, i.e. run actual sim. and start workers to evaluate REF15 score in parallel.
             # !!! This returns obj. func. args for ONE particle.
             # !!! To determine obj. func. params and propagate particle for next generation, ALL PSO runs have to know obj. func.
             # !!! args of ALL THE OTHERS to make ONE GLOBAL PARTICLE HISTORY!
-            part.fargs = evaluate(self.particle2dict(part))                         # Set obj. func. args as particle attributes.
-            part_history.append(part)                                                # Append current particle generation to history.
+            PART.fargs = evaluate(self.particle2dict(PART))                         # Set obj. func. args as particle attributes.
+            # !!! The intra-block communicator needs to gather in blackbox function?
+            part_history.append(PART)                                                # Append current particle generation to history.
             # !!! To update obj. func. params, the global history of ALL PARTICLES needs to be known.
-            # !!! Here, all local pop_history lists must be gathered to obtain one global particle history
-            fparams = updateParam(part_history, num_params_obj, self._update_param)  # Update obj. func. param.s.
+            # !!! Gather local part_history lists from PSO sim. ranks to obtain global particle history.
+            part_history_global = comm_inter.allgather(part_history)
+            # HERE: Flatten part_history_global.
+            fparams = updateParam(part_history_global, num_params_obj, self._update_param)  # Update obj. func. param.s.
             fparams_history.append(fparams)                                         # Append current obj. func. param. set to history.
             
-            # Recalculate all fitnesses in `pop_history` and `pop`.
-            print("------\nRe-calculate fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...\n----")
-            for idg, pops in enumerate(pop_history[::-1]):
-                #print("G" + str(g-idg+1) + "\n----")
-                with open(home+"/log.log", "a+") as log: log.writelines("#\n#G" + str(g-idg+1) + "\n#\n")
-                for idp, part in enumerate(pops):
-                    part.fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj)) # Calculate fitnesses using most recent obj. func. params.
-                    if idg == 0:
-                        pop[idp].fitness = part.fitness
-                        pop[idp].best_fitness = None
-                        pop[idp].best = None
-                    line = "{:>3}".format(str(idp+1))+" ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"{:>15.4e}".format(pop[idp].fitness)+"\n"
-                    with open(home+"/log.log", "a+") as log: log.writelines(line)
+            # Recalculate fitnesses of particle for all generations.
+            print("Re-calculate fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...")
             
-            # Determine pbest/gbest.
-            best = None
-            print("Determine pbest/gbest...")
-            for idg, pops in enumerate(pop_history[::-1]):
-                #print("----\nG" + str(g-idg+1) + "\n----")
-                for idp, part in enumerate(pops):
-                    #print("P" +  str(idp+1))
-                    #print("pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
-                    if pop[idp].best is None or part.fitness < pop[idp].best_fitness:
-                        pop[idp].best = part.position
-                        pop[idp].best_fitness = part.fitness
-                        #print("Update pop pbest:", pop[idp].best_fitness, "at", pop[idp].best)
-                    if best is None or part.fitness < best.best_fitness:
-                        part.best = part.position
-                        part.best_fitness = part.fitness
-                        best = part.clone()
-                        #print("Update gbest:", self.particle2dict(best))
-                    #print("----")
-            print("----------")
+            for part in part_history:
+                part.fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj)) # Calculate fitnesses using most recent obj. func. params.
+                part.best_fitness = None                                                                    # Reset personal best fitness.
+                part.best = None                                                                            # Reset personal best position
+                line = "{:>3}".format(str(idp+1))+" ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
+                with open(home+"/log.log", "a+") as log: log.writelines(line)
+            
             with open(home+"/log.log", "a") as log: log.writelines("#----\n")
-            for part in pop:
-                self.updateParticle(part, best, self.phi1, self.phi2)
+           
+            # Initialize best fitness and best positions for particle.
+            best_fitness = None
+            best_position = None
+            
+            # Determine pbest.
+            for part in part_history:
+                if best_fitness == None or part.fitness < part.best_fitness:
+                    best_fitness = part.fitness
+                    best_position = part.position
+            
+            # Set pbest for all generations.
+            for part in part_history:
+                part.best_fitness = best_fitness
+                part.best = best_position
+
+            # Set pbest for current particle to be propagated.
+            PART.best_fitness = best_fitness
+            PART.best = best_position
+
+            # Allgather part_history arrays containing correct fitnesses and pbests.
+            part_history_global = comm_inter.allgather(part_history)
+           
+            # Determine global best by comparing personal bests.
+            print("Determine gbest...")
+            best = None
+            
+            for plist in part_history_global:
+                if best is None or plist[-1].best_fitness < best.best_fitness:
+                    best = plist[-1].clone()
+                    print("Update gbest:", self.particle2dict(best))
+
             print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
-            print("----------")
+            self.updateParticle(PART, best, self.phi1, self.phi2)
+            
         if os.path.isfile(home+"/params.log"):
             os.rename(home+"/params.log", home+"/#params.log#")
         numpy.savetxt(home+"/params.log", fparams_history)
