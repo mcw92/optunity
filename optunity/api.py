@@ -288,7 +288,12 @@ Optimizes func with given solver.
 Returns the solution and a ``namedtuple`` with further details.
 ''' + optimize_results.__doc__ + optimize_stats.__doc__
 
-def optimize_dyn_PSO(func, box, domains, maximize=False, num_particles=0, num_generations=0, num_particles_global=0, num_args_obj=1, num_params_obj=0, pmap=map, decoder=None, update_param=None, eval_obj=None):
+def optimize_dyn_PSO(func, box, domains, maximize=False, 
+        num_particles=0, num_generations=0, num_particles_global=0, 
+        num_args_obj=1, num_params_obj=0, 
+        pmap=map, comm_inter=MPI.COMM_WORLD, comm_intra=MPI.COMM_WORLD, 
+        decoder=None, 
+        update_param=None, eval_obj=None):
     """
     Optimize func with dynamic PSO solver.
     :param func: [callable] blackbox function
@@ -330,7 +335,7 @@ def optimize_dyn_PSO(func, box, domains, maximize=False, num_particles=0, num_ge
     solver.__dict__
     time = timeit.default_timer()                   # Define platform-specific default timer.
     try:
-        solution, report = solver.optimize(f, domains, num_args_obj, num_params_obj, maximize, pmap)
+        solution, report = solver.optimize(f, domains, num_args_obj, num_params_obj, maximize, pmap, comm_inter, comm_intra)
     except fun.MaximumEvaluationsException:
         # Early stopping because maximum number of evaluations is reached.
         # Retrieve solution from call log.
