@@ -54,7 +54,7 @@ e.g. :mod:`optunity.solvers`.
 import timeit
 import sys
 import operator
-import mpi4py
+from mpi4py import MPI
 
 # optunity imports
 from . import functions as fun
@@ -331,7 +331,6 @@ def optimize_dyn_PSO(func, box, domains, maximize=False,
     num_evals = -len(f.call_log)
     solver = make_solver(solver_name="dynamic particle swarm", num_particles=num_particles, num_generations=num_generations,\
                          update_param=update_param, eval_obj=eval_obj, **box)  # Create solver.
-    print("Solver setup used:")
     solver.__dict__
     time = timeit.default_timer()                   # Define platform-specific default timer.
     try:
