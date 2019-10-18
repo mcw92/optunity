@@ -263,7 +263,8 @@ class DynamicPSO(ParticleSwarm):
        
         home = str(pathlib.Path.home())
 
-        print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Initialize particle for first generation...")
+        print(MPI.COMM_WORLD.Get_rank(),"/", MPI.COMM_WORLD.Get_size(),": Initialize particle for first generation...")
+        #print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Initialize particle for first generation...")
         PART = self.generate(domains)   # Randomly generate new particle.
         part_history = []               # Initialize particle history list for THIS individual particle.
         fparams_history = []            # Initialize obj. func. param. history list.
@@ -273,24 +274,38 @@ class DynamicPSO(ParticleSwarm):
         if os.path.isfile(home+"/log.log"):
             os.rename(home+"/log.log", home+"/#log.log#")
         
-        print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Start dynamic PSO...")
+        print(MPI.COMM_WORLD.Get_rank(),"/", MPI.COMM_WORLD.Get_size(),": Start dynamic PSO...")
+        #print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Start dynamic PSO...")
         for g in range(self.num_generations):                                       # Loop over generations.
             print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Evaluate blackbox for generation", str(g+1))
-            # !!! Evaluate blackbox, i.e. run actual sim.
-            # !!! Start workers upon xtc modification to evaluate REF15 score in parallel (top-level code).
-            # !!! This returns obj. func. args for ONE particle.
+            # Evaluate blackbox, i.e. run actual sim.
+            # Start workers upon xtc modification to evaluate REF15 score in parallel (top level).
+            # Returns obj. func. args for ONE particle.
+
+            particle_dict = self.particle2dict(PART)
+            dir_name=""
+            for k, v in particle_dict.items():
+                append = k+"_"+str(v)+"_"
+                dir_name +=append
+            dir_name=dir_name[0:-1]
+            os.chdir("/home/marie/ext/PhD/hyppopy/template_setup")
+            os.makedirs(dir_name)
+            os.chdir(dir_name)
+            path = os.getcwd()
+            path = comm_intra.bcast(path, root=0)
+
             PART.fargs = evaluate(self.particle2dict(PART))                         # Set obj. func. args as particle attributes.
             part_history.append(PART)                                               # Append current particle generation to history.
-            # !!! To update obj. func. params, the global history of ALL PARTICLES needs to be known.
-            # !!! Gather local part_history lists from PSO sim. ranks to obtain global particle history.
-            part_history_global = comm_inter.allgather(part_history)
+            # To update obj. func. params, global history of ALL PARTICLES needs to be known.
+            part_history_global = comm_inter.allgather(part_history)                # Gather local part_history lists from PSO sim. ranks.
             part_history_global = [ part for part_hist in part_history_global for part in part_hist ] # Flatten part_history_global
             fparams = updateParam(part_history_global, num_params_obj, self._update_param)  # Update obj. func. param.s.
             fparams_history.append(fparams)                                                 # Append current obj. func. param. set to history.
             
             # Recalculate fitnesses of particle for all generations.
-            #if comm_inter.Get_rank() == 0:
-            print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Re-calculate fitnesses with latest obj. func. params", repr(numpy.around(fparams, 2)), "...")
+            #if comm_intra.Get_rank() == 0:
+            print(MPI.COMM_WORLD.Get_rank(),"/", MPI.COMM_WORLD.Get_size(),": Re-calculate fitnesses with latest obj. func. params", repr(numpy.around(fparams, 2)), "...")
+            #print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Re-calculate fitnesses with latest obj. func. params", repr(numpy.around(fparams, 2)), "...")
             
             PART.fitness = fit * util.score(evaluateObjFunc(PART.fargs[:], fparams[:], self._eval_obj)) # Calculate fitnesses using most recent obj. func. params.
             for part in part_history:
