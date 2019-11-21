@@ -303,9 +303,7 @@ class DynamicPSO(ParticleSwarm):
             fparams_history.append(fparams)                                                 # Append current obj. func. param. set to history.
             
             # Recalculate fitnesses of particle for all generations.
-            #if comm_intra.Get_rank() == 0:
             print(MPI.COMM_WORLD.Get_rank(),"/", MPI.COMM_WORLD.Get_size(),": Re-calculate fitnesses with latest obj. func. params", repr(numpy.around(fparams, 2)), "...")
-            #print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Re-calculate fitnesses with latest obj. func. params", repr(numpy.around(fparams, 2)), "...")
             
             PART.fitness = fit * util.score(evaluateObjFunc(PART.fargs[:], fparams[:], self._eval_obj)) # Calculate fitnesses using most recent obj. func. params.
             for part in part_history:
@@ -315,7 +313,6 @@ class DynamicPSO(ParticleSwarm):
                 part.best = None                                                                            # Reset personal best position
                 #line = "{:>3}".format(str(idp+1))+" ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
                 line = " ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
-                #if comm_inter.Get_rank() == 0:
                 with open(home+"/log.log", "a+") as log: log.writelines(line)
             
             #with open(home+"/log.log", "a") as log: log.writelines("#----\n")
@@ -358,7 +355,7 @@ class DynamicPSO(ParticleSwarm):
             if comm_inter.Get_rank() == 0:
                 print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
             self.updateParticle(PART, best, self.phi1, self.phi2)
-        
+            MPI.COMM_WORLD.Barrier() 
         # Write parameter history to file.
         # Write best parameter set to log (only once!).
         if comm_inter.Get_rank() == 0:
