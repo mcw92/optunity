@@ -44,6 +44,7 @@ import functools        # higher-order functions and operations on callable obje
 import os
 import copy
 import pathlib
+import pickle
 from mpi4py import MPI
 
 # optunity imports
@@ -265,7 +266,31 @@ class DynamicPSO(ParticleSwarm):
 
         print(MPI.COMM_WORLD.Get_rank(),"/", MPI.COMM_WORLD.Get_size(),": Initialize particle for first generation...")
         #print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Initialize particle for first generation...")
-        PART = self.generate(domains)   # Randomly generate new particle.
+        
+        hist_path = home+"/history.p"
+        hist_prev_path = home+"/history_prev.p"
+        log_path = home+"/log.log"
+        log_backup = home+"/#log.log#"
+        params_path = home+"/params.log"
+        params_backup = home+"/#params.log#"
+
+        # Restart from checkpoint if exists.
+        try: # Most recent checkpoint exists and is functional.
+            with open(hist_path,"rb") as histp:
+                PART_temp = pickle.load(histp)
+        except (OSError, PickleError): # Most recent checkpoint not there or broken.
+            try: # Previous checkpoint exists and is functional.
+                with open(hist_prev_path,"rb") as histp:
+                    PART_temp = pickle.load(histp)
+            except (OSError, PickleError): # Previous checkpoint not there or broken.
+                PART = self.generate(domains) # Randomly initiate particle.
+            else:
+                idx = -(comm_inter.Get_size()-comm_inter.Get_rank())
+                PART = PART_temp[idx]
+        else:
+            idx = -(comm_inter.Get_size()-comm_inter.Get_rank())
+            PART = PART_temp[idx]
+
         part_history = []               # Initialize particle history list for THIS individual particle.
         fparams_history = []            # Initialize obj. func. param. history list.
         
@@ -313,7 +338,7 @@ class DynamicPSO(ParticleSwarm):
                 part.best = None                                                                            # Reset personal best position
                 #line = "{:>3}".format(str(idp+1))+" ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
                 line = " ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
-                with open(home+"/log.log", "a+") as log: log.writelines(line)
+                with open(log_path, "a+") as log: log.writelines(line)
             
             #with open(home+"/log.log", "a") as log: log.writelines("#----\n")
            
@@ -356,14 +381,21 @@ class DynamicPSO(ParticleSwarm):
                 print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
             self.updateParticle(PART, best, self.phi1, self.phi2)
             MPI.COMM_WORLD.Barrier() 
-        # Write parameter history to file.
-        # Write best parameter set to log (only once!).
+
+        # Logging and checkpointing.
         if comm_inter.Get_rank() == 0:
-            with open(home+"/log.log", "a+") as log: 
+            # Write best parameter set to log.
+            with open(log_path, "a+") as log: 
                 log.writelines("Best parameter set:"+" ".join(map("{:>15.4e}".format, best.position))+" with fitness"+"{:>15.4e}".format(best.best_fitness))
-            if os.path.isfile(home+"/params.log"):
-                os.rename(home+"/params.log", home+"/#params.log#")
-            numpy.savetxt(home+"/params.log", fparams_history)
+            # Write parameter history to file.
+            if os.path.isfile(params_path):
+                os.rename(params_path, params_backup)
+            numpy.savetxt(params_path, fparams_history)
+            # Checkpointing.
+            if os.path.isfile(hist_path):
+                os.rename(hist_path, hist_prev_path)
+            with open(hist_path,"wb") as histp:
+                pickle.dump(part_history_global, histp)
             #print(fparams_history)
         
         return dict([(k, v) for k, v in zip(self.bounds.keys(), best.position)]), None # Return best position for each hyperparameter.
