@@ -30,22 +30,17 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#########
-# TO DO #
-#########
-# Update solver manual.
-
 import math             # mathematical functions
 import numpy            # scientific computing package
 import operator as op   # standard operators as functions
 import random           # generate pseudo-random numbers
 import array            # efficient arrays of numeric values
 import functools        # higher-order functions and operations on callable objects
-import os
-import copy
-import pathlib
-import pickle
-from mpi4py import MPI
+import os               # miscellaneous operating system interfaces
+import copy             # shallow and deep copy operations
+import pathlib          # object-oriented filesystem paths
+import pickle           # Python object serialization
+from mpi4py import MPI  # MPI for Python
 
 # optunity imports
 from .solver_registry import register_solver
