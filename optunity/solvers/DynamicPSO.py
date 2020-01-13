@@ -75,7 +75,6 @@ def evaluateObjFunc(args, params=None, func=None, **kwargs):
                    how to combine args and params to obtain scalar fitness
     :returns:      [float] obj. func. value (scalar fitness)
     """
-
     if func is not None and params is not None:
         print("User-specified combineObj() evaluates to", numpy.around(func(args, params, **kwargs), 2), ".")
         return func(args, params, **kwargs)
@@ -258,17 +257,24 @@ class DynamicPSO(ParticleSwarm):
        
         # paths for checkpointing and logging
         home           = str(pathlib.Path.home())
-        workspace      = home+"/ext/PhD/hyppopy/template_setup"
-        hist_path      = workspace+"/history.p"
-        hist_prev_path = workspace+"/history_prev.p"
-        best_path      = workspace+"/best.p"
-        best_prev_path = workspace+"/best_prev.p"
-        log_path       = workspace+"/log.log"
-        log_backup     = workspace+"/#log.log#"
-        params_path    = workspace+"/params.log"
-        params_backup  = workspace+"/#params.log#"
+        workspace      = home+"/ext/PhD/hyppopy/template_setup/"
+        hist_path      = workspace+"history.p"
+        hist_prev_path = workspace+"history_prev.p"
+        best_path      = workspace+"best.p"
+        best_prev_path = workspace+"best_prev.p"
+        log_path       = workspace+"log.log"
+        log_backup     = workspace+"#log.log#"
+        params_path    = workspace+"params.log"
+        params_backup  = workspace+"#params.log#"
 
-        print(comm_inter.Get_rank(),"/",comm_inter.Get_size(),"(",MPI.COMM_WORLD.Get_rank(),"/", MPI.COMM_WORLD.Get_size(),"): Initialize particle for first generation...")
+        # MPI stuff
+        r_inter = comm_inter.Get_rank()
+        s_inter = comm_inter.Get_size()
+        r_world = MPI.COMM_WORLD.Get_rank()
+        s_world = MPI.COMM_WORLD.Get_size()
+
+        
+        print(r_inter, "/", s_inter, "(", r_world,"/", s_world,"): Initialize particle for first generation...")
         
         # Restart from checkpoint if exists.
         try: # Most recent checkpoint exists and is functional.
@@ -276,36 +282,35 @@ class DynamicPSO(ParticleSwarm):
                 PART_temp = pickle.load(histp)
             with open(best_path,"rb") as bestp:
                 BEST = pickle.load(bestp)
-        # except (FileNotFoundError, pickle.PickleError): # Most recent checkpoint not there or broken.
-        except Exception as e:
+        except Exception as e: # Most recent checkpoint not there or broken.
             print(e)
             try: # Previous checkpoint exists and is functional.
                 with open(hist_prev_path,"rb") as histp:
                     PART_temp = pickle.load(histp)
                 with open(best_prev_path,"rb") as bestp:
                     BEST = pickle.load(bestp)
-            # except (FileNotFoundError, pickle.PickleError): # Previous checkpoint not there or broken.
-            except Exception as e:
+            except Exception as e: # Previous checkpoint not there or broken.
                 print(e)
                 print("CHECKPOINTING: No history found, randomly initiate particle.")
                 PART = self.generate(domains) # Randomly initiate particle.
             else:
-                idx = -(comm_inter.Get_size()-comm_inter.Get_rank())
-                PART = PART_temp[idx]
                 print("CHECKPOINTING: Load previous particle history.")
+                idx = r_inter - s_inter
+                PART = PART_temp[idx]
                 self.updateParticle(PART, BEST, self.phi1, self.phi2)
         else:
-            idx = -(comm_inter.Get_size()-comm_inter.Get_rank())
-            PART = PART_temp[idx]
             print("CHECKPOINTING: Load most recent particle history.")
+            idx = r_inter - s_inter
+            PART = PART_temp[idx]
             self.updateParticle(PART, BEST, self.phi1, self.phi2)
 
-        part_history = []               # Initialize particle history list for THIS individual particle.
-        fparams_history = []            # Initialize obj. func. param. history list.
+        part_history = []   # Initialize particle history list for THIS individual particle.
+        fparams_history = []# Initialize obj. func. param. history list.
+        best = None         # Initialize particle storing global best. MUST BE SHARED AMONG ALL PARTICLES!
         
-        best = None                     # Initialize particle storing global best. THIS MUST BE SHARED AMONG ALL PARTICLES!!!
-        
-        if comm_inter.Get_rank()==0:
+        comm_inter.Barrier()
+
+        if r_inter == 0:
             if os.path.isfile(log_path):
                 os.rename(log_path, log_backup)
             if os.path.isfile(params_path):
@@ -313,24 +318,24 @@ class DynamicPSO(ParticleSwarm):
             if os.path.isfile(hist_path):
                 os.rename(hist_path, hist_prev_path)
         
-        print(comm_inter.Get_rank(),"/",comm_inter.Get_size(),"(",MPI.COMM_WORLD.Get_rank(),"/",MPI.COMM_WORLD.Get_size(),"): Start dynamic PSO...")
-        for g in range(self.num_generations):                                       # Loop over generations.
-            print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),"(",MPI.COMM_WORLD.Get_rank(),"/",MPI.COMM_WORLD.Get_size(),"): Evaluate blackbox for generation", str(g+1))
-            # Evaluate blackbox, i.e. run actual sim.
-            # Start workers upon xtc modification to evaluate REF15 score in parallel (top level).
-            # Returns obj. func. args for ONE particle.
+        comm_inter.Barrier()
 
-            # Create simulation directory.
+        print(r_inter,"/",s_inter,"(",r_world,"/",s_world,"): Start dynamic PSO...")
+        for g in range(self.num_generations):                                       # Loop over generations.
+            print(r_inter,"/", s_inter,"(",r_world,"/",s_world,"): Evaluate blackbox for generation", str(g+1), "...")
+            # Evaluate blackbox, i.e. run actual sim. to return obj. func. args for ONE particle.
+            # Start workers upon xtc modification to evaluate REF15 score in parallel (top level).
+
+            # Create sim. directory.
             dir_name=""
             for k, v in self.particle2dict(PART).items():
                 dir_name += k+"_"+str(v)+"_"
             dir_name=dir_name[0:-1]
-            os.chdir(workspace)
-            os.makedirs(dir_name,exist_ok=True)
-            os.chdir(dir_name)
-            path = os.getcwd()
-            path = comm_intra.bcast(path, root=0)
-           
+            os.chdir(workspace)                     # Change to workspace.
+            os.makedirs(dir_name,exist_ok=True)     # Repetition of same particle allowed (exist_ok = True).
+            os.chdir(dir_name)                      # Change to sim. directory.
+            path = os.getcwd()                      # Get absolute sim. dir. path.
+            path = comm_intra.bcast(path, root=0)   # Broadcast path to workers within block.
             print("Folder sucessfully created...")
 
             # Evaluate blackbox, i.e. run actual sim.
@@ -342,16 +347,17 @@ class DynamicPSO(ParticleSwarm):
             else:
                 part_history.append(copy.deepcopy(PART))        # Append particle to local history.
                 print("Particle",self.particle2dict(PART),", fargs",repr(PART.fargs))
-            # Gather particle history.
-            part_history_global = comm_inter.allgather(part_history)                # Gather local part_history lists from PSO sim. ranks to update obj. func. params
-            part_history_global = [ part for part_hist in part_history_global for part in part_hist ] # Flatten part_history_global
+            
+            # Gather particle history to update obj. func. params.
+            part_history_global = comm_inter.allgather(part_history)                                  # Gather local part_history lists from PSO sim. ranks.
+            part_history_global = [ part for part_hist in part_history_global for part in part_hist ] # Flatten part_history_global.
             
             # Update obj. func. params.
             fparams = updateParam(part_history_global, num_params_obj, self._update_param)  # Update obj. func. param.s.
             fparams_history.append(fparams)                                                 # Append current obj. func. param. set to history.
             
             # Recalculate fitnesses of particle for all generations.
-            print(comm_inter.Get_rank(),"/",comm_inter.Get_size(),"(",MPI.COMM_WORLD.Get_rank(),"/", MPI.COMM_WORLD.Get_size(),"): Re-calculate fitnesses with latest obj. func. params", repr(numpy.around(fparams, 2)), "...")
+            print(r_inter,"/",s_inter,"(",r_world,"/", s_world,"): Re-calculate fitnesses with latest obj. func. params", repr(numpy.around(fparams, 2)), "...")
             PART.fitness = fit * util.score(evaluateObjFunc(PART.fargs[:], fparams[:], self._eval_obj))
             
             for part in part_history:
@@ -367,20 +373,20 @@ class DynamicPSO(ParticleSwarm):
             best_position = None
             
             # Determine pbest.
-            print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),"(",MPI.COMM_WORLD.Get_rank(),"/",MPI.COMM_WORLD.Get_size(),"): Determine pbest...")
+            print(r_inter,"/", s_inter,"(",r_world,"/",s_world,"): Determine pbest...")
             for part in part_history:
                 if best_fitness == None or part.fitness < best_fitness:
                     best_fitness = part.fitness
                     best_position = part.position
             
             # Set pbest for all generations.
-            print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Set pbest in mono-history...")
+            print(r_inter,"/", s_inter,": Set pbest in mono-history...")
             for part in part_history:
                 part.best_fitness = best_fitness
                 part.best = best_position
-                part.__str__()
+            
             # Set pbest for current particle to be propagated.
-            print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),": Set pbest for current particle...")
+            print(r_inter,"/", s_inter,": Set pbest for current particle...")
             PART.best_fitness = best_fitness
             PART.best = best_position
 
@@ -389,7 +395,7 @@ class DynamicPSO(ParticleSwarm):
             part_history_global = [ part for part_hist in part_history_global for part in part_hist ] # Flatten part_history_global
            
             # Determine global best.
-            print(comm_inter.Get_rank(),"/", comm_inter.Get_size(),"(",MPI.COMM_WORLD.Get_rank(),"/",MPI.COMM_WORLD.Get_size(),"): Determine gbest...")
+            print(r_inter,"/", s_inter,"(",r_world,"/",s_world,"): Determine gbest...")
             best = None
             
             for part in part_history_global:
@@ -397,9 +403,7 @@ class DynamicPSO(ParticleSwarm):
                     best = part.clone()
                     print("Update gbest:", self.particle2dict(best))
             
-            MPI.COMM_WORLD.Barrier()
-            
-            if comm_inter.Get_rank() == comm_inter.Get_size()-1:
+            if r_inter == s_inter-1:
                 print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
                 # Write best parameter set to log.
                 with open(log_path, "a+") as log: 
@@ -417,8 +421,6 @@ class DynamicPSO(ParticleSwarm):
                     print("Done...")
                 print(fparams_history)
             
-            MPI.COMM_WORLD.Barrier()
-
             # Propagate particle for next generation.
             self.updateParticle(PART, best, self.phi1, self.phi2)
             print("Particle updated for next generation...")
