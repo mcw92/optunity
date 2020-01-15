@@ -308,8 +308,6 @@ class DynamicPSO(ParticleSwarm):
         fparams_history = []# Initialize obj. func. param. history list.
         best = None         # Initialize particle storing global best. MUST BE SHARED AMONG ALL PARTICLES!
         
-        comm_inter.Barrier()
-
         if r_inter == 0:
             if os.path.isfile(log_path):
                 os.rename(log_path, log_backup)
@@ -318,8 +316,6 @@ class DynamicPSO(ParticleSwarm):
             if os.path.isfile(hist_path):
                 os.rename(hist_path, hist_prev_path)
         
-        comm_inter.Barrier()
-
         print(r_inter,"/",s_inter,"(",r_world,"/",s_world,"): Start dynamic PSO...")
         for g in range(self.num_generations):                                       # Loop over generations.
             print(r_inter,"/", s_inter,"(",r_world,"/",s_world,"): Evaluate blackbox for generation", str(g+1), "...")
@@ -403,7 +399,7 @@ class DynamicPSO(ParticleSwarm):
                     best = part.clone()
                     print("Update gbest:", self.particle2dict(best))
             
-            if r_inter == s_inter-1:
+            if r_inter == 0:
                 print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
                 # Write best parameter set to log.
                 with open(log_path, "a+") as log: 
