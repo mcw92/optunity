@@ -257,9 +257,8 @@ class DynamicPSO(ParticleSwarm):
        
         # paths for checkpointing and logging
         #home           = str(pathlib.Path.home()) # local desktop
-        #workspace      = home+"/ext/PhD/hyppopy/template_setup/" # local desktop
-        #workspace      = "/pfs/work2/workspace/scratch/ks9779-dynPSO_LAO_ha-0/template_setup/"# bwUniCluster
-        workspace      = "/pfs/work6/workspace/scratch/ku4408-LAO_ha-0/template_setup/"
+        workspace      = str(pathlib.Path.home())+"/ext/PhD/hyppopy/template_setup/" # local desktop
+        #workspace      = "/pfs/work6/workspace/scratch/ku4408-LAO_ha-0/template_setup/"
         hist_path      = workspace+"history.p"
         hist_prev_path = workspace+"history_prev.p"
         best_path      = workspace+"best.p"
@@ -277,7 +276,7 @@ class DynamicPSO(ParticleSwarm):
 
         
         print(r_inter, "/", s_inter, "(", r_world,"/", s_world,"): Initialize particle for first generation...")
-        
+       
         # Restart from checkpoint if exists.
         try: # Most recent checkpoint exists and is functional.
             with open(hist_path,"rb") as histp:
