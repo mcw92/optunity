@@ -291,6 +291,7 @@ Returns the solution and a ``namedtuple`` with further details.
 def optimize_dyn_PSO(func, box, domains, maximize=False, 
         num_particles=0, num_generations=0, num_particles_global=0, 
         num_args_obj=1, num_params_obj=0, 
+        phi1=1.5, phi2=2.0,
         pmap=map, comm_inter=MPI.COMM_WORLD, comm_intra=MPI.COMM_WORLD, 
         decoder=None, 
         update_param=None, eval_obj=None):
@@ -304,6 +305,8 @@ def optimize_dyn_PSO(func, box, domains, maximize=False,
     :param num_particles_global: [int] global number of particles
     :param num_args_obj: [int] number of arguments in obj. func.
     :param num_params_obj: [int] number of parameters in obj. func.
+    :param phi1: [float] acceleration coefficient of pbest component
+    :param phi2: [float] acceleration coefficient of gbest component
     :param pmap: [function] map() function to use, to vectorize use :func:`optunity.parallel.pmap`
     :param decoder:
     :param update_param: [function] function specifying how to set parameters of objective function
@@ -330,7 +333,7 @@ def optimize_dyn_PSO(func, box, domains, maximize=False,
     f = fun.logged(f)
     num_evals = -len(f.call_log)
     solver = make_solver(solver_name="dynamic particle swarm", num_particles=num_particles, num_generations=num_generations,\
-                         update_param=update_param, eval_obj=eval_obj, **box)  # Create solver.
+                         phi1=phi1, phi2=phi2, update_param=update_param, eval_obj=eval_obj, **box)  # Create solver.
     solver.__dict__
     time = timeit.default_timer()                   # Define platform-specific default timer.
     try:
