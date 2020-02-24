@@ -257,8 +257,8 @@ class DynamicPSO(ParticleSwarm):
        
         # paths for checkpointing and logging
         #home           = str(pathlib.Path.home()) # local desktop
-        workspace      = str(pathlib.Path.home())+"/ext/PhD/hyppopy/template_setup/" # local desktop
-        #workspace      = "/pfs/work6/workspace/scratch/ku4408-LAO_ha-0/template_setup/"
+        #workspace      = str(pathlib.Path.home())+"/ext/PhD/hyppopy/template_setup/" # local desktop
+        workspace      = "/pfs/work6/workspace/scratch/ku4408-LAO_ha-0/template_setup/"
         hist_path      = workspace+"history.p"
         hist_prev_path = workspace+"history_prev.p"
         best_path      = workspace+"best.p"
