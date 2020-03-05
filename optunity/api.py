@@ -54,6 +54,7 @@ e.g. :mod:`optunity.solvers`.
 import timeit
 import sys
 import operator
+import pathlib
 from mpi4py import MPI
 
 # optunity imports
@@ -293,6 +294,7 @@ def optimize_dyn_PSO(func, box, domains, maximize=False,
         num_args_obj=1, num_params_obj=0, 
         phi1=1.5, phi2=2.0,
         pmap=map, comm_inter=MPI.COMM_WORLD, comm_intra=MPI.COMM_WORLD, 
+        workspace=pathlib.Path.home(),
         decoder=None, 
         update_param=None, eval_obj=None):
     """
@@ -337,7 +339,7 @@ def optimize_dyn_PSO(func, box, domains, maximize=False,
     solver.__dict__
     time = timeit.default_timer()                   # Define platform-specific default timer.
     try:
-        solution, report = solver.optimize(f, domains, num_args_obj, num_params_obj, maximize, pmap, comm_inter, comm_intra)
+        solution, report = solver.optimize(f, domains, num_args_obj, num_params_obj, maximize, pmap, comm_inter, comm_intra, workspace)
     except fun.MaximumEvaluationsException:
         # Early stopping because maximum number of evaluations is reached.
         # Retrieve solution from call log.

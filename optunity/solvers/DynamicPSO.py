@@ -239,7 +239,7 @@ class DynamicPSO(ParticleSwarm):
         print("New position:", part.position[:])
     
     @_copydoc(Solver.optimize)
-    def optimize(self, f, domains, num_args_obj, num_params_obj, maximize=False, pmap=map, comm_inter=MPI.COMM_WORLD, comm_intra=MPI.COMM_WORLD):  # f is obj. func. to be optimized.
+    def optimize(self, f, domains, num_args_obj, num_params_obj, maximize=False, pmap=map, comm_inter=MPI.COMM_WORLD, comm_intra=MPI.COMM_WORLD, workspace=pathlib.Path.home()):
         """Actual solver implementing dynamic particle swarm optimization.""" 
         # functools.wraps(wrapped): convenience function for invoking update_wrapper() as function decorator when
         # defining a wrapper function. functools.update_wrapper(wrapper, wrapped) updates a wrapper function to look 
@@ -258,7 +258,7 @@ class DynamicPSO(ParticleSwarm):
         # paths for checkpointing and logging
         #home           = str(pathlib.Path.home()) # local desktop
         #workspace      = str(pathlib.Path.home())+"/ext/PhD/hyppopy/template_setup/" # local desktop
-        workspace      = "/pfs/work6/workspace/scratch/ku4408-LAO_ha-0/template_setup/"
+        #workspace      = "/pfs/work6/workspace/scratch/ku4408-LAO_ha-0/template_setup/"
         hist_path      = workspace+"history.p"
         hist_prev_path = workspace+"history_prev.p"
         best_path      = workspace+"best.p"
