@@ -256,9 +256,6 @@ class DynamicPSO(ParticleSwarm):
             fit = 1.0
        
         # paths for checkpointing and logging
-        #home           = str(pathlib.Path.home()) # local desktop
-        #workspace      = str(pathlib.Path.home())+"/ext/PhD/hyppopy/template_setup/" # local desktop
-        #workspace      = "/pfs/work6/workspace/scratch/ku4408-LAO_ha-0/template_setup/"
         hist_path      = workspace+"history.p"
         hist_prev_path = workspace+"history_prev.p"
         best_path      = workspace+"best.p"
@@ -400,6 +397,8 @@ class DynamicPSO(ParticleSwarm):
                     best = part.clone()
                     print("Update gbest:", self.particle2dict(best))
             
+            comm_inter.Barrier()
+
             if r_inter == 0:
                 print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
                 # Write best parameter set to log.
@@ -417,7 +416,7 @@ class DynamicPSO(ParticleSwarm):
                     pickle.dump(best, bestp)
                     print("Done...")
                 print(fparams_history)
-            
+
             # Propagate particle for next generation.
             self.updateParticle(PART, best, self.phi1, self.phi2)
             print("Particle updated for next generation...")
