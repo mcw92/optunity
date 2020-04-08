@@ -254,7 +254,9 @@ class DynamicPSO(ParticleSwarm):
             fit = -1.0  # `optimize` function is a minimizer,
         else:           # i.e. to maximize, minimize -f.
             fit = 1.0
-       
+
+        ckpt = False
+
         # paths for checkpointing and logging
         hist_path      = workspace+"history.p"
         hist_prev_path = workspace+"history_prev.p"
@@ -293,18 +295,26 @@ class DynamicPSO(ParticleSwarm):
                 PART = self.generate(domains) # Randomly initiate particle.
             else:
                 print("CHECKPOINTING: Load previous particle history.")
+                ckpt = True
                 idx = r_inter - s_inter
                 PART = PART_temp[idx]
                 self.updateParticle(PART, BEST, self.phi1, self.phi2)
         else:
             print("CHECKPOINTING: Load most recent particle history.")
+            ckpt = True
             idx = r_inter - s_inter
             PART = PART_temp[idx]
             self.updateParticle(PART, BEST, self.phi1, self.phi2)
 
-        part_history = []   # Initialize particle history list for THIS individual particle.
+        if ckpt == False:
+            part_history = []   # Initialize particle history list for THIS individual particle.
+            best = None         # Initialize particle storing global best. MUST BE SHARED AMONG ALL PARTICLES!
+        else:
+            ng_temp = int(len(PART_temp)/self._num_particles)
+            part_history = PART_temp[r_inter*ng_temp:(r_inter+1)*ng_temp]
+            best = BEST
+
         fparams_history = []# Initialize obj. func. param. history list.
-        best = None         # Initialize particle storing global best. MUST BE SHARED AMONG ALL PARTICLES!
         
         if r_inter == 0:
             if os.path.isfile(log_path):
