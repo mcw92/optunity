@@ -431,6 +431,7 @@ class DynamicPSO(ParticleSwarm):
             self.updateParticle(PART, best, self.phi1, self.phi2)
             print("Particle updated for next generation...")
             print("Waiting for MPI barrier...")
+            comm_intra.Barrier()
             MPI.COMM_WORLD.Barrier()
             print("MPI barrier passed...")
 
