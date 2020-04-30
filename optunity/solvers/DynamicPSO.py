@@ -369,8 +369,8 @@ class DynamicPSO(ParticleSwarm):
                 print("Particle",self.particle2dict(part),", fitness",part.fitness)
                 part.best_fitness = None                                                                    # Reset personal best fitness.
                 part.best = None                                                                            # Reset personal best position
-                line = " ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
-                with open(log_path, "a+") as log: log.writelines(line)
+                #line = " ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
+                #with open(log_path, "a+") as log: log.writelines(line)
             
             # Initialize best fitness and best positions for particle.
             best_fitness = None
@@ -406,6 +406,9 @@ class DynamicPSO(ParticleSwarm):
                 if best is None or part.fitness < best.best_fitness:
                     best = part.clone()
                     print("Update gbest:", self.particle2dict(best))
+                if r_inter == 0:
+                    line = " ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
+                    with open(log_path, "a+") as log: log.writelines(line)
             
             comm_inter.Barrier()
 
