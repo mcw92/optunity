@@ -49,6 +49,8 @@ from . import util
 from .Sobol import Sobol
 from . import ParticleSwarm
 
+random.seed(1059)
+
 def updateParam(pop_history, num_params=0, func=None, **kwargs):
     """Update/determine obj. func. params according to user-specified function.
     If function is not specified, all params are set to 1.
