@@ -296,7 +296,8 @@ def optimize_dyn_PSO(func, box, domains, maximize=False,
         pmap=map, comm_inter=MPI.COMM_WORLD, comm_intra=MPI.COMM_WORLD, 
         workspace=pathlib.Path.home(),
         decoder=None, 
-        update_param=None, eval_obj=None):
+        update_param=None, eval_obj=None,
+        seed=None):
     """
     Optimize func with dynamic PSO solver.
     :param func: [callable] blackbox function
@@ -335,7 +336,7 @@ def optimize_dyn_PSO(func, box, domains, maximize=False,
     f = fun.logged(f)
     num_evals = -len(f.call_log)
     solver = make_solver(solver_name="dynamic particle swarm", num_particles=num_particles, num_generations=num_generations,\
-                         phi1=phi1, phi2=phi2, update_param=update_param, eval_obj=eval_obj, **box)  # Create solver.
+                         phi1=phi1, phi2=phi2, update_param=update_param, eval_obj=eval_obj, seed=seed, **box)  # Create solver.
     solver.__dict__
     time = timeit.default_timer()                   # Define platform-specific default timer.
     try:

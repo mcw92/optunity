@@ -49,8 +49,6 @@ from . import util
 from .Sobol import Sobol
 from . import ParticleSwarm
 
-random.seed(1059)
-
 def updateParam(pop_history, num_params=0, func=None, **kwargs):
     """Update/determine obj. func. params according to user-specified function.
     If function is not specified, all params are set to 1.
@@ -148,7 +146,7 @@ class DynamicPSO(ParticleSwarm):
                                               best=self.best[:], fitness=self.fitness,
                                               best_fitness=self.best_fitness, fargs=self.fargs[:])
 
-    def __init__(self, num_particles, num_generations, max_speed=None, phi1=1.5, phi2=2.0, update_param=None, eval_obj=None, **kwargs):
+    def __init__(self, num_particles, num_generations, max_speed=None, phi1=1.5, phi2=2.0, update_param=None, eval_obj=None, seed=None, **kwargs):
         """ Initialize a dynamic PSO solver.
         :param num_particles: [int] number of particles in a generation
         :param num_generations: [int] number of generations
@@ -161,11 +159,11 @@ class DynamicPSO(ParticleSwarm):
         """
         # Check format of bounds given for each hyperparameter.
         assert all([len(v) == 2 and v[0] <= v[1] for v in kwargs.values()]), 'kwargs.values() are not [lb, ub] pairs'
-        self._bounds = kwargs                           # len(self.bounds) gives number of hyperparameters considered.
+        self._bounds = kwargs                            # len(self.bounds) gives number of hyperparameters considered.
         self._num_particles = num_particles
         self._num_generations = num_generations
-
-        self._sobolseed = random.randint(100,2000)      # random.randint(a,b) gives random integer N with a <= N <= b.
+        self._rng = random.Random(seed)                  # random number generator object
+        self._sobolseed = self._rng.randint(100,2000)    # random.randint(a,b) gives random integer N with a <= N <= b.
 
         if max_speed is None: 
             max_speed = 0.7/num_generations
@@ -215,7 +213,7 @@ class DynamicPSO(ParticleSwarm):
                 vector.append(vector_dict[key])
 
         part = DynamicPSO.DynamicParticle(position=array.array('d', vector),                # random.uniform(a, b) returns a random floating point number N such that
-                                      speed=array.array('d', map(random.uniform,            # a <= N <= b for a <= b and vice versa.
+                                      speed=array.array('d', map(self._rng.uniform,            # a <= N <= b for a <= b and vice versa.
                                                                  self.smin, self.smax)),
                                       best=None, fitness=None, best_fitness=None,
                                       fargs=None)
@@ -224,8 +222,8 @@ class DynamicPSO(ParticleSwarm):
 
     def updateParticle(self, part, best, phi1, phi2):
         """Propagate particle, i.e. update its speed and position according to current personal and global best."""
-        u1 = (random.uniform(0, phi1) for _ in range(len(part.position)))           # Generate phi1 and phi2 random number coeffiecents
-        u2 = (random.uniform(0, phi2) for _ in range(len(part.position)))           # for each hyperparameter
+        u1 = (self._rng.uniform(0, phi1) for _ in range(len(part.position)))           # Generate phi1 and phi2 random number coeffiecents
+        u2 = (self._rng.uniform(0, phi2) for _ in range(len(part.position)))           # for each hyperparameter
         v_u1 = map(op.mul, u1, map(op.sub, part.best, part.position))               # Calculate phi1 and phi2 velocity contributions.      
         v_u2 = map(op.mul, u2, map(op.sub, best.position, part.position))
         part.speed = array.array('d', map(op.add, part.speed,                       # Add up velocity contributions.
