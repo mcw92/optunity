@@ -287,7 +287,7 @@ Optimizes func with given solver.
 Returns the solution and a ``namedtuple`` with further details.
 ''' + optimize_results.__doc__ + optimize_stats.__doc__
 
-def optimize_dyn_PSO(func, box, domains, maximize=False, max_evals=0, num_args_obj=1, num_params_obj=0, pmap=map, decoder=None, update_param=None, eval_obj=None):
+def optimize_dyn_PSO(func, box, domains, maximize=False, max_evals=0, num_args_obj=1, num_params_obj=0, pmap=map, decoder=None, update_param=None, eval_obj=None, phi1=1.5, phi2=2.0):
     """
     Optimize func with dynamic PSO solver.
     :param func: [callable] objective function
@@ -320,7 +320,7 @@ def optimize_dyn_PSO(func, box, domains, maximize=False, max_evals=0, num_args_o
     suggestion = suggest_solver(num_evals=max_evals, solver_name="dynamic particle swarm", **box)
     print("Solver setup used:")
     print(suggestion)
-    solver = make_solver(update_param=update_param, eval_obj=eval_obj, **suggestion)  # Create solver.
+    solver = make_solver(update_param=update_param, eval_obj=eval_obj, phi1=phi1, phi2=phi2, **suggestion)  # Create solver.
     time = timeit.default_timer()                   # Define platform-specific default timer.
     try:
         solution, report = solver.optimize(f, domains, num_args_obj, num_params_obj, maximize, pmap)
