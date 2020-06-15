@@ -223,7 +223,7 @@ class DynamicPSO(ParticleSwarm):
                                                                  self.smin, self.smax)),
                                       best=None, fitness=None, best_fitness=None,
                                       fargs=None)
-        print("Position", repr(part.position), ", speed", repr(part.speed))
+        #print("Position", repr(part.position), ", speed", repr(part.speed))
         return part
 
     def updateParticle(self, part, best, phi1, phi2):
@@ -263,7 +263,7 @@ class DynamicPSO(ParticleSwarm):
        
         home = str(pathlib.Path.home())
 
-        print("----------")
+        #print("----------")
         print("Initialize first generation...")
         pop = [self.generate(domains) for _ in range(self.num_particles)]  # Randomly generate list of num_particle new particles. 
         pop_history = []                                            # Initialize particle history as list.
@@ -292,7 +292,7 @@ class DynamicPSO(ParticleSwarm):
             fparams_history.append(fparams)                                         # Append current obj. func. param. set to history.
             
             # Recalculate all fitnesses in `pop_history` and `pop`.
-            print("------\nRe-calculate all fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...\n----")
+            print("Re-calculate all fitnesses with latest obj. func. params " + repr(numpy.around(fparams, 2)) + "...")
             for idg, pops in enumerate(pop_history[::-1]):
                 #print("G" + str(g-idg+1) + "\n----")
                 with open(home+"/log.log", "a+") as log: log.writelines("#\n#G" + str(g-idg+1) + "\n#\n")
@@ -309,7 +309,7 @@ class DynamicPSO(ParticleSwarm):
             
             # Determine pbest/gbest.
             best = None
-            print("Determine pbest/gbest...")
+            #print("Determine pbest/gbest...")
             for idg, pops in enumerate(pop_history[::-1]):
                 #print("----\nG" + str(g-idg+1) + "\n----")
                 for idp, part in enumerate(pops):
@@ -325,15 +325,15 @@ class DynamicPSO(ParticleSwarm):
                         best = part.clone()
                         #print("Update gbest:", self.particle2dict(best))
                     #print("----")
-            print("----------")
+            #print("----------")
             with open(home+"/log.log", "a") as log: log.writelines("#----\n")
             for part in pop:
                 self.updateParticle(part, best, self.phi1, self.phi2)
             print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
-            print("----------")
+            #print("----------")
         if os.path.isfile(home+"/params.log"):
             os.rename(home+"/params.log", home+"/#params.log#")
         numpy.savetxt(home+"/params.log", fparams_history)
-        print(fparams_history)
+        #print(fparams_history)
         with open(home+"/log.log", "a+") as log: log.writelines("#Best parameter set:"+" ".join(map("{:>15.4e}".format, best.position))+" with fitness"+"{:>15.4e}".format(best.best_fitness))
         return dict([(k, v) for k, v in zip(self.bounds.keys(), best.position)]), None # Return best position for each hyperparameter.
