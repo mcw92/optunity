@@ -44,7 +44,7 @@ from mpi4py import MPI  # MPI for Python
 
 # optunity imports
 from .solver_registry import register_solver
-from .util import Solver, _copydoc, uniform_in_bounds, uniform_in_bounds_dyn_PSO, loguniform_in_bounds_dyn_PSO
+from .util import Solver, _copydoc, uniform_in_bounds, uniform_in_bounds_dyn_PSO, loguniform_in_bounds_dyn_PSO, uniform_in_bounds_rng
 from . import util
 from .Sobol import Sobol
 from . import ParticleSwarm
@@ -196,11 +196,11 @@ class DynamicPSO(ParticleSwarm):
             sobol_vector, self.sobolseed = Sobol.i4_sobol(len(uni), self.sobolseed)
             vector_uni = util.scale_unit_to_bounds(sobol_vector, uni.values())
         else:
-            vector_uni = uniform_in_bounds(uni)
+            vector_uni = uniform_in_bounds_rng(uni, self._rng)
         # log-uniformly distributed hyperparameters
         vector_log = [] 
         for idx, value in enumerate(log.values()):
-            vector_log.append(loguniform_in_bounds_dyn_PSO(value))
+            vector_log.append(loguniform_in_bounds_dyn_PSO(value, self._rng))
 
         sorted_bounds = {**uni, **log}
         vector_temp = [vector_uni, vector_log]
