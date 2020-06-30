@@ -44,7 +44,7 @@ from mpi4py import MPI  # MPI for Python
 
 # optunity imports
 from .solver_registry import register_solver
-from .util import Solver, _copydoc, uniform_in_bounds, uniform_in_bounds_dyn_PSO, loguniform_in_bounds_dyn_PSO, uniform_in_bounds_rng
+from .util import Solver, _copydoc, uniform_in_bounds_rng, loguniform_in_bounds_dyn_PSO
 from . import util
 from .Sobol import Sobol
 from . import ParticleSwarm
@@ -116,6 +116,7 @@ def evaluateObjFunc(args, params=None, func=None, **kwargs):
 
 class DynamicPSO(ParticleSwarm):
     """Dynamic particle swarm optimization solver class."""
+
     class DynamicParticle(ParticleSwarm.Particle):
         """Dynamic particle class."""
         def __init__(self, position, speed, best, fitness, best_fitness, fargs):
@@ -159,20 +160,21 @@ class DynamicPSO(ParticleSwarm):
         """
         # Check format of bounds given for each hyperparameter.
         assert all([len(v) == 2 and v[0] <= v[1] for v in kwargs.values()]), 'kwargs.values() are not [lb, ub] pairs'
-        self._bounds = kwargs                            # len(self.bounds) gives number of hyperparameters considered.
-        self._num_particles = num_particles
-        self._num_generations = num_generations
-        self._rng = random.Random(seed)                  # random number generator object
-        self._sobolseed = self._rng.randint(100,2000)    # random.randint(a,b) gives random integer N with a <= N <= b.
+        self._bounds = kwargs                           # len(self.bounds) gives number of hyperparameters considered.
+        self._num_particles = num_particles             # number of particles in swarm
+        self._num_generations = num_generations         # number of generations
+        self._rng = random.Random(seed)                 # random number generator object
+        self._sobolseed = self._rng.randint(100,2000)   # randint(a,b) gives random integer N with a <= N <= b
 
         if max_speed is None: 
             max_speed = 0.7/num_generations
         self._max_speed = max_speed
-        # Calculate min. and max. velocities for each hyperparameter considered.
-        self._smax = [self.max_speed * (b[1] - b[0]) for _, b in self.bounds.items()]   # dictionary.items() returns view object displaying (key,value) tuple pair list.
-        self._smin = list(map(op.neg, self.smax))                                       # operator.neg(obj) returns obj negated (-obj).
+        # Calculate min. and max. velocities for each parameter to be optimized.
+        # dictionary.items() returns view object displaying (key,value) tuple pair list.
+        self._smax = [self.max_speed * (b[1] - b[0]) for _, b in self.bounds.items()]
+        self._smin = list(map(op.neg, self.smax))   # neg(obj) returns obj negated -obj.
 
-        self._phi1 = phi1
+        self._phi1 = phi1   # acceleration coefficients
         self._phi2 = phi2
 
         self._update_param = update_param
@@ -191,13 +193,16 @@ class DynamicPSO(ParticleSwarm):
     def generate(self, domains):
         """Generate new dynamic particle."""
         uni, log = self.split_log_uni(domains)
-        # uniformly distributed hyperparameters
-        if len(uni) < Sobol.maxdim():
+        # uniformly distributed parameters
+        if len(uni) < Sobol.maxdim(): # static method Sobol.maxdim() always returns 40 = max. supported dimensionality
+            # static method i4_sobol creates new quasi-random Sobol vector with each call.
+            print(self.sobolseed)
             sobol_vector, self.sobolseed = Sobol.i4_sobol(len(uni), self.sobolseed)
+            print(self.sobolseed)
             vector_uni = util.scale_unit_to_bounds(sobol_vector, uni.values())
         else:
             vector_uni = uniform_in_bounds_rng(uni, self._rng)
-        # log-uniformly distributed hyperparameters
+        # log-uniformly distributed parameters
         vector_log = [] 
         for idx, value in enumerate(log.values()):
             vector_log.append(loguniform_in_bounds_dyn_PSO(value, self._rng))
@@ -212,8 +217,8 @@ class DynamicPSO(ParticleSwarm):
         for idx, key in enumerate(self.bounds.keys()):
                 vector.append(vector_dict[key])
 
-        part = DynamicPSO.DynamicParticle(position=array.array('d', vector),                # random.uniform(a, b) returns a random floating point number N such that
-                                      speed=array.array('d', map(self._rng.uniform,            # a <= N <= b for a <= b and vice versa.
+        part = DynamicPSO.DynamicParticle(position=array.array('d', vector),            # random.uniform(a, b) returns random float N with
+                                      speed=array.array('d', map(self._rng.uniform,     # a <= N <= b for a <= b and vice versa.
                                                                  self.smin, self.smax)),
                                       best=None, fitness=None, best_fitness=None,
                                       fargs=None)
@@ -222,13 +227,13 @@ class DynamicPSO(ParticleSwarm):
 
     def updateParticle(self, part, best, phi1, phi2):
         """Propagate particle, i.e. update its speed and position according to current personal and global best."""
-        u1 = (self._rng.uniform(0, phi1) for _ in range(len(part.position)))           # Generate phi1 and phi2 random number coeffiecents
-        u2 = (self._rng.uniform(0, phi2) for _ in range(len(part.position)))           # for each hyperparameter
-        v_u1 = map(op.mul, u1, map(op.sub, part.best, part.position))               # Calculate phi1 and phi2 velocity contributions.      
+        u1 = (self._rng.uniform(0, phi1) for _ in range(len(part.position)))    # Generate phi1 and phi2 random number coeffiecents
+        u2 = (self._rng.uniform(0, phi2) for _ in range(len(part.position)))    # for each hyperparameter
+        v_u1 = map(op.mul, u1, map(op.sub, part.best, part.position))           # Calculate phi1 and phi2 velocity contributions.      
         v_u2 = map(op.mul, u2, map(op.sub, best.position, part.position))
-        part.speed = array.array('d', map(op.add, part.speed,                       # Add up velocity contributions.
+        part.speed = array.array('d', map(op.add, part.speed,                   # Add up velocity contributions.
                                           map(op.add, v_u1, v_u2)))
-        for i, speed in enumerate(part.speed):                                      # Constrain particle speed to range (smin, smax).
+        for i, speed in enumerate(part.speed):                                  # Constrain particle speed to range (smin, smax).
             if speed < self.smin[i]:
                 part.speed[i] = self.smin[i]
             elif speed > self.smax[i]:
