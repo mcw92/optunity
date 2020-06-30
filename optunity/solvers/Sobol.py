@@ -208,7 +208,7 @@ class Sobol(Solver):
     @staticmethod
     def i4_bit_hi1 ( n ):
         """
-        Returns the position of the high 1 bit base 2 in an integer.
+        Return position of high 1 bit base 2 in integer.
 
         :param n: the integer to be measured
         :type n: int
@@ -217,10 +217,8 @@ class Sobol(Solver):
         This was taken from http://people.sc.fsu.edu/~jburkardt/py_src/sobol/sobol.html
         Licensing:
             This code is distributed under the MIT license.
-
         Modified:
             22 February 2011
-
         Author:
             Original MATLAB version by John Burkardt.
             PYTHON version by Corrado Chisari
@@ -288,13 +286,12 @@ class Sobol(Solver):
     @staticmethod
     def i4_sobol ( dim_num, seed ):
         """
-        Generates a new quasi-random Sobol vector with each call.
-
-        :param dim_num: number of dimensions of the Sobol vector
+        Generate new quasi-random Sobol vector with each call.
+        :param dim_num: number of dimensions of Sobol vector
         :type dim_num: int
-        :param seed: the seed to use to generate the Sobol vector
+        :param seed: seed used to generate Sobol vector
         :type seed: int
-        :returns: the next quasirandom vector and the next seed to use
+        :returns: next quasirandom vector and next seed to use
 
         This was taken from http://people.sc.fsu.edu/~jburkardt/py_src/sobol/sobol.html
         Licensing:
@@ -330,9 +327,8 @@ class Sobol(Solver):
             dim_num_save = -1
             log_max = 30
             seed_save = -1
-    #
+    
     #    Initialize (part of) V.
-    #
             v = [[0] * dim_max for _ in irange(log_max)]
             v[0][0:40] = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \
@@ -368,9 +364,8 @@ class Sobol(Solver):
                 7, 59, 65, 21, 3, 113, 61, 89, 45, 107 ]
 
             v[7][37:40] = [7, 23, 39 ]
-    #
+    
     #    Set POLY.
-    #
             poly= [ \
                 1,     3,     7,    11,    13,    19,    25,    37,    59,    47, \
                 61,    55,    41,    67,    97,    91, 109, 103, 115, 131, \
@@ -378,37 +373,29 @@ class Sobol(Solver):
                 213, 191, 253, 203, 211, 239, 247, 285, 369, 299 ]
 
             atmost = 2**log_max - 1
-    #
-    #    Find the number of bits in ATMOST.
-    #
+    
+    #    Find number of bits in ATMOST.
             maxcol = Sobol.i4_bit_hi1 ( atmost )
-    #
+    
     #    Initialize row 1 of V.
-    #
     #        v[0,0:maxcol] = 1
             for i in irange(maxcol):
                 v[i][0] = 1
 
-    #
-    #    Things to do only if the dimension changed.
-    #
+    #    Things to do only if dimension changed.
         if ( dim_num != dim_num_save ):
-    #
+    
     #    Check parameters.
-    #
             if ( dim_num < 1 or dim_max < dim_num ):
                 raise ValueError('I4_SOBOL - Fatal error! The spatial dimension DIM_NUM should satisfy: 1 <= DIM_NUM <= %d, But this input value is DIM_NUM = %d' % (dim_max, dim_num))
 
             dim_num_save = dim_num
-    #
-    #    Initialize the remaining rows of V.
-    #
+
+    #    Initialize remaining rows of V.
             for i in irange(2 , dim_num+1):
-    #
-    #    The bits of the integer POLY(I) gives the form of polynomial I.
-    #
-    #    Find the degree of polynomial I from binary encoding.
-    #
+
+    #    Bits of integer POLY(I) give form of polynomial I.
+    #    Find degree of polynomial I from binary encoding.
                 j = poly[i-1]
                 m = 0
                 while ( 1 ):
@@ -416,19 +403,16 @@ class Sobol(Solver):
                     if ( j <= 0 ):
                         break
                     m = m + 1
-    #
-    #    Expand this bit pattern to separate components of the logical array INCLUD.
-    #
+
+    #    Expand bit pattern to separate components of logical array INCLUD.
                 j = poly[i-1]
                 includ = [0 for _ in irange(m)]
                 for k in irange(m, 0, -1):
                     j2 = math.floor ( j / 2. )
                     includ[k-1] =  (j != 2 * j2 )
                     j = j2
-    #
-    #    Calculate the remaining elements of row I as explained
-    #    in Bratley and Fox, section 2.
-    #
+
+    #    Calculate remaining elements of row I as explained in Bratley and Fox, section 2.
                 for j in irange( m+1, maxcol+1 ):
                     newv = v[j-m-1][i-1]
                     l = 1
@@ -460,8 +444,8 @@ class Sobol(Solver):
             lastq = [0 for _ in irange(dim_num)]
 
         elif ( seed == seed_save + 1 ):
-    #
-    #    Find the position of the right-hand zero in SEED.
+
+    #    Find position of right-hand zero in SEED.
     #
             l = Sobol.i4_bit_lo0 ( seed )
 
@@ -486,14 +470,12 @@ class Sobol(Solver):
                     lastq[i-1] = Sobol.bitwise_xor ( int(lastq[i-1]), int(v[l-1][i-1]) )
 
             l = Sobol.i4_bit_lo0 ( seed )
-    #
-    #    Check that the user is not calling too many times!
-    #
+
+    #    Check that user is not calling too many times!
         if ( maxcol < l ):
             raise ValueError('I4_SOBOL - Fatal error! Too many calls: MAXCOL = %d, L = %d' % (maxcol, l))
-    #
-    #    Calculate the new components of QUASI.
-    #
+    
+    #    Calculate new components of QUASI.
         quasi = [0 for _ in irange(dim_num)]
         for i in irange( 1, dim_num+1):
             quasi[i-1] = lastq[i-1] * recipd
