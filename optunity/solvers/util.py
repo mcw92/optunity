@@ -49,6 +49,8 @@ def uniform_in_bounds_rng(bounds, rng):
 
     :param bounds: the bounds we must adhere to
     :type bounds: dict {"name": [lb ub], ...}
+    :param rng: random number generator objecti
+    :type rng: Random.random(seed)
     """
     return map(rng.uniform, *zip(*bounds.values()))
 
@@ -57,6 +59,8 @@ def uniform_in_bounds_dyn_PSO(bounds, rng):
 
     :param bounds: bounds we must adhere to
     :type bounds: list [lb ub]
+    :param rng: random number generator objecti
+    :type rng: Random.random(seed)
     """
     #return random.uniform(bounds[0], bounds[1])
     return rng.uniform(bounds[0], bounds[1])
@@ -66,6 +70,8 @@ def loguniform_in_bounds_dyn_PSO(bounds, rng):
 
     :param bounds: the bounds we must adhere to
     :type bounds: list ``bounds`` as [lb, ub]
+    :param rng: random number generator objecti
+    :type rng: Random.random(seed)
     """
 
     assert bounds[0] < bounds[1], "Condition lb < ub violated!"
@@ -91,7 +97,6 @@ def scale_unit_to_bounds(seq, bounds):
     assert(len(seq) == len(bounds))
     return [float(x) * float(b[1] - b[0]) + b[0]
             for x, b in zip(seq, bounds)]
-
 
 # python version-independent metaclass usage
 SolverBase = abc.ABCMeta('SolverBase', (object, ), {})
