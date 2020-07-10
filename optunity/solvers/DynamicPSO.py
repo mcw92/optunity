@@ -366,16 +366,14 @@ class DynamicPSO(ParticleSwarm):
             fparams_history.append(fparams)                                                 # Append current obj. func. param. set to history.
             
             # Recalculate fitnesses of particle for all generations.
-            print(r_inter,"/",s_inter,"(",r_world,"/", s_world,"): Re-calculate fitnesses with latest obj. func. params", repr(numpy.around(fparams, 2)), "...")
+            print(r_inter,"/",s_inter,"(",r_world,"/", s_world,"): Re-calculate fitnesses with latest OF params", repr(numpy.around(fparams, 2)), "...")
             PART.fitness = fit * util.score(evaluateObjFunc(PART.fargs[:], fparams[:], self._eval_obj))
             
             for part in part_history:
-                part.fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj)) # Calculate fitnesses using most recent obj. func. params.
+                part.fitness = fit * util.score(evaluateObjFunc(part.fargs[:], fparams[:], self._eval_obj)) # Calculate fitnesses with latest OF params.
                 print("Particle",self.particle2dict(part),", fitness",part.fitness)
                 part.best_fitness = None                                                                    # Reset personal best fitness.
                 part.best = None                                                                            # Reset personal best position
-                #line = " ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
-                #with open(log_path, "a+") as log: log.writelines(line)
             
             # Initialize best fitness and best positions for particle.
             best_fitness = None
@@ -389,7 +387,7 @@ class DynamicPSO(ParticleSwarm):
                     best_position = part.position
             
             # Set pbest for all generations.
-            print(r_inter,"/", s_inter,": Set pbest in mono-history...")
+            print(r_inter,"/", s_inter,": Set pbest",best_fitness,"in mono-history...")
             for part in part_history:
                 part.best_fitness = best_fitness
                 part.best = best_position
@@ -408,20 +406,22 @@ class DynamicPSO(ParticleSwarm):
             best = None
             
             for part in part_history_global:
-                if best is None or part.fitness < best.best_fitness:
+                if best is None or part.fitness < best.fitness:#best_fitness:
                     best = part.clone()
                     print("Update gbest:", self.particle2dict(best))
                 if r_inter == 0:
                     line = " ".join(map("{:>15.4e}".format, part.position))+"  ".join(map("{:>15.4e}".format, part.fargs))+"{:>15.4e}".format(part.fitness)+"\n"
                     with open(log_path, "a+") as log: log.writelines(line)
-            
+
+            #if best.fitness == best.best_fitness: print("gbest: fitness = pbest") 
+
             comm_inter.Barrier()
 
             if r_inter == 0:
-                print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.best_fitness)
+                print("Best position so far:", best.position, "with args", best.fargs, "and fitness", best.fitness)#best_fitness)
                 # Write best parameter set to log.
                 with open(log_path, "a+") as log: 
-                    log.writelines("Best parameter set:"+" ".join(map("{:>15.4e}".format, best.position))+" with fitness"+"{:>15.4e}".format(best.best_fitness)+"\n")
+                    log.writelines("Best parameter set:"+" ".join(map("{:>15.4e}".format, best.position))+" with fitness"+"{:>15.4e}".format(best.fitness)+"\n")
                 # Write parameter history to file.
                 numpy.savetxt(params_path, fparams_history)
                 # Checkpointing.
